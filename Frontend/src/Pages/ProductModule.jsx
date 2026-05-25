@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import api from "../api.js";
 
 export default function ProductModule({onNavigate}) {
   const [products, setProducts] = useState([]);
