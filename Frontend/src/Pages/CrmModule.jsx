@@ -35,7 +35,7 @@ export default function CRMModule() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/crm/summary", { credentials: "include" });
+      const res = await fetch("/api/crm/summary");
 
      
       if (res.status === 401) {
@@ -255,7 +255,7 @@ function Customers({ onRefresh, navigate }) {
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    const res  = await fetch(`/api/crm/customers?search=${encodeURIComponent(search)}&limit=50`, { credentials:"include" });
+    const res  = await fetch(`/api/crm/customers?search=${encodeURIComponent(search)}&limit=50`);
     if (res.status === 401) { navigate("/auth"); return; }
     const data = await res.json();
     setCustomers(data.customers || []);
@@ -265,7 +265,7 @@ function Customers({ onRefresh, navigate }) {
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
   const openDetail = async (id) => {
-    const res  = await fetch(`/api/crm/customers/${id}`, { credentials:"include" });
+    const res  = await fetch(`/api/crm/customers/${id}`);
     const data = await res.json();
     setSelected(data);
   };
@@ -286,7 +286,7 @@ function Customers({ onRefresh, navigate }) {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this customer?")) return;
-    await fetch(`/api/crm/customers/${id}`, { method:"DELETE", credentials:"include" });
+    await fetch(`/api/crm/customers/${id}`, { method:"DELETE" });
     fetchCustomers(); onRefresh();
   };
 
@@ -628,7 +628,7 @@ function FollowUps({ onRefresh }) {
   useEffect(() => { fetchFu(); }, []);
 
   const markDone = async (id) => {
-    await fetch(`/api/crm/followups/${id}/done`, { method:"PATCH", credentials:"include" });
+    await fetch(`/api/crm/followups/${id}/done`, { method:"PATCH" });
     fetchFu(); onRefresh();
   };
 
