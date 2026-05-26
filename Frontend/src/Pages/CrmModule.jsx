@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import api from "../api.js";
+import { apiFetch } from "../api.js";
 
 
 const LEAD_STATUSES = ["new", "contacted", "qualified", "negotiation", "won", "lost"];
@@ -35,7 +35,7 @@ export default function CRMModule() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/crm/summary");
+      const res = await apiFetch("/api/crm/summary");
 
      
       if (res.status === 401) {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../api.js";
+import { apiFetch } from "../api.js";
 
 export default function Auth() {
   const [isLogin, setIsLogin]   = useState(true);
@@ -16,7 +16,7 @@ export default function Auth() {
 
     const url = isLogin ? "/api/auth/login" : "/api/auth/signup";
 
-    const res  = await fetch(url, {
+    const res  = await apiFetch(url, {
       method:      "POST",
       headers:     { "Content-Type": "application/json" },
       credentials: "include",

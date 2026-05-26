@@ -2,21 +2,30 @@ import bcrypt from "bcrypt";
 import jwt    from "jsonwebtoken";
 import pool   from "../config/db.js";
 
-const SECRET = process.env.JWT_SECRET || "mysecret";
+const SECRET  = process.env.JWT_SECRET || "mysecret";
+const IS_PROD = process.env.NODE_ENV === "production";
 
-// ─── SIGNUP — creates business + owner user atomically ───────
+const setCookie = (res, token) => {
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure:   IS_PROD,                    // true on Render (HTTPS)
+    sameSite: IS_PROD ? "None" : "Lax",   // None required for cross-origin
+    path:     "/",
+    maxAge:   7 * 24 * 60 * 60 * 1000
+  });
+};
+
+// ─── SIGNUP ──────────────────────────────────────────────────
 export const signup = async (req, res) => {
   const client = await pool.connect();
   try {
     const { name, email, password, businessName } = req.body;
 
-    // Validation
     if (!name?.trim())         return res.status(400).json({ error: "Name is required" });
     if (!email?.trim())        return res.status(400).json({ error: "Email is required" });
     if (!password?.trim())     return res.status(400).json({ error: "Password is required" });
     if (!businessName?.trim()) return res.status(400).json({ error: "Business name is required" });
 
-    // Check duplicate email
     const existing = await client.query(
       "SELECT id FROM users WHERE email = $1", [email.trim()]
     );
@@ -25,14 +34,12 @@ export const signup = async (req, res) => {
 
     await client.query("BEGIN");
 
-    // 1. Create the business first
     const bizResult = await client.query(
       "INSERT INTO businesses (name) VALUES ($1) RETURNING *",
       [businessName.trim()]
     );
     const business = bizResult.rows[0];
 
-    // 2. Create owner user linked to that business
     const hashed = await bcrypt.hash(password, 10);
     const userResult = await client.query(
       `INSERT INTO users (name, email, password, business_id, role)
@@ -44,20 +51,13 @@ export const signup = async (req, res) => {
 
     await client.query("COMMIT");
 
-    // 3. JWT carries userId + businessId + role — all three required
     const token = jwt.sign(
       { userId: user.id, businessId: business.id, role: user.role },
       SECRET,
       { expiresIn: "7d" }
     );
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure:   true,   // set true in production with HTTPS
-      sameSite: "none",
-      path:     "/",
-      maxAge:   7 * 24 * 60 * 60 * 1000
-    });
+    setCookie(res, token);
 
     res.status(201).json({
       message: "Signup success",
@@ -74,12 +74,11 @@ export const signup = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("SIGNUP ERROR:", err);
-    res.status(500).json({ error: "Signup failed" });
+    res.status(500).json({ error: "Signup failed: " + err.message });
   } finally {
     client.release();
   }
 };
-
 
 // ─── LOGIN ───────────────────────────────────────────────────
 export const login = async (req, res) => {
@@ -89,7 +88,6 @@ export const login = async (req, res) => {
     if (!email?.trim())    return res.status(400).json({ error: "Email is required" });
     if (!password?.trim()) return res.status(400).json({ error: "Password is required" });
 
-    // Fetch user AND their business in one query
     const result = await pool.query(
       `SELECT u.*, b.name AS business_name
        FROM users u
@@ -104,20 +102,13 @@ export const login = async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(400).json({ error: "Incorrect password" });
 
-    // JWT carries userId + businessId + role
     const token = jwt.sign(
       { userId: user.id, businessId: user.business_id, role: user.role },
       SECRET,
       { expiresIn: "7d" }
     );
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure:   false,
-      sameSite: "lax",
-      path:     "/",
-      maxAge:   7 * 24 * 60 * 60 * 1000
-    });
+    setCookie(res, token);
 
     res.json({
       message: "Login success",
@@ -133,13 +124,16 @@ export const login = async (req, res) => {
 
   } catch (err) {
     console.error("LOGIN ERROR:", err);
-    res.status(500).json({ error: "Login failed" });
+    res.status(500).json({ error: "Login failed: " + err.message });
   }
 };
 
-
 // ─── LOGOUT ──────────────────────────────────────────────────
 export const logout = (req, res) => {
-  res.clearCookie("token", { path: "/" });
+  res.clearCookie("token", {
+    path:     "/",
+    secure:   IS_PROD,
+    sameSite: IS_PROD ? "None" : "Lax"
+  });
   res.json({ message: "Logged out" });
 };

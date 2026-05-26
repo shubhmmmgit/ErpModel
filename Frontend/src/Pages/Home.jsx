@@ -1,5 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { apiFetch } from "../api.js";
+
 
 export default function Home() {
   const navigate = useNavigate();
@@ -30,7 +32,7 @@ export default function Home() {
   }, []);
 
  const handleLogout = async () => {
-  await fetch("/api/auth/logout", {
+  await apiFetch("/api/auth/logout", {
     method: "POST",
     credentials: "include"
   });

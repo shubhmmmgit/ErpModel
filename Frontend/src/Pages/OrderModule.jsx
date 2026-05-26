@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import api from "../api.js";
+import { apiFetch } from "../api.js";
 
 // STATUS CONFIG 
 const STATUS = {
@@ -39,9 +39,9 @@ export default function OrderModule() {
     setLoading(true);
     try {
       const [ordersRes, productsRes, summaryRes] = await Promise.all([
-        fetch("/api/orders", { credentials: "include" }),
-        fetch("/api/products", { credentials: "include" }),
-        fetch("/api/orders/summary", { credentials: "include" })
+        apiFetch("/api/orders", { credentials: "include" }),
+        apiFetch("/api/products", { credentials: "include" }),
+        apiFetch("/api/orders/summary", { credentials: "include" })
       ]);
 
       if (ordersRes.status === 401 || productsRes.status === 401) {
@@ -103,7 +103,7 @@ export default function OrderModule() {
         .map((i) => ({ product_id: parseInt(i.product_id), quantity: parseInt(i.quantity) }))
     };
 
-    const res = await fetch("/api/orders", {
+    const res = await apiFetch("/api/orders", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -124,7 +124,7 @@ export default function OrderModule() {
 
   // ── Update status ────────────────────────────────────────
   const handleStatusChange = async (orderId, status) => {
-    const res = await fetch(`/api/orders/${orderId}/status`, {
+    const res = await apiFetch(`/api/orders/${orderId}/status`, {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -133,7 +133,7 @@ export default function OrderModule() {
     if (res.ok) {
       fetchAll();
       if (detailOrder?.id === orderId) {
-        const updated = await fetch(`/api/orders/${orderId}`, { credentials: "include" });
+        const updated = await apiFetch(`/api/orders/${orderId}`, { credentials: "include" });
         setDetail(await updated.json());
       }
     }
@@ -142,7 +142,7 @@ export default function OrderModule() {
   // ── Delete order ─────────────────────────────────────────
   const handleDelete = async (orderId) => {
     if (!window.confirm("Delete this order? Stock will be restored.")) return;
-    const res = await fetch(`/api/orders/${orderId}`, {
+    const res = await apiFetch(`/api/orders/${orderId}`, {
       method: "DELETE",
       credentials: "include"
     });
@@ -151,7 +151,7 @@ export default function OrderModule() {
 
   // ── Open detail modal ─────────────────────────────────────
   const openDetail = async (orderId) => {
-    const res = await fetch(`/api/orders/${orderId}`, { credentials: "include" });
+    const res = await apiFetch(`/api/orders/${orderId}`, { credentials: "include" });
     const data = await res.json();
     setDetail(data);
   };

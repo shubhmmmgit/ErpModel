@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import api from "../api.js";
+import {apiFetch} from "../api.js";
 
 export default function ProductModule({onNavigate}) {
   const [products, setProducts] = useState([]);
@@ -15,11 +15,11 @@ export default function ProductModule({onNavigate}) {
     stock: "",
   });
 
-  const businessId = 1;
+  
   
   //  Fetch products
   const fetchProducts = async () => {
-    const res = await fetch(`/api/products/`, 
+    const res = await apiFetch(`/api/products/`, 
       {
       credentials: "include"
     });
@@ -58,7 +58,7 @@ const handleSubmit = async (e) => {
   });
 
   const payload = {
-    business_id: BUSINESS_ID,
+
     name: form.name,
     price: Number(form.price),
     stock: Number(form.stock),
@@ -68,7 +68,7 @@ const handleSubmit = async (e) => {
   // ONLY ONE API CALL
   if (editingProduct) {
     // UPDATE
-    await fetch(`/api/products/${editingProduct}`, {
+    await apiFetch(`/api/products/${editingProduct}`, {
       method: "PUT",
       credentials: "include",
       headers: {
@@ -80,7 +80,7 @@ const handleSubmit = async (e) => {
     setEditingProduct(null);
   } else {
     // CREATE
-    await fetch("/api/products/add", {
+    await apiFetch("/api/products/add", {
       method: "POST",
       credentials: "include",
       headers: {
@@ -111,7 +111,7 @@ const handleSubmit = async (e) => {
 
   // start 5 sec timer
   const timer = setTimeout(async () => {
-    await fetch(`/api/products/${product.id}`,{
+    await apiFetch(`/api/products/${product.id}`,{
       method: "DELETE",
       credentials: "include"
     });
