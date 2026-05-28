@@ -198,13 +198,23 @@ export default function Home() {
       <div style={moduleSection}>
         <h2 style={modulesHeading}>Modules</h2>
 
+    
+        
         <div style={moduleGrid}>
           <Link to="/products" className="module-card" style={cardStyle}>
             <div style={cardIcon}>📦</div>
             <h3 style={cardTitle}>Products</h3>
             <p style={cardDesc}>Manage your product inventory</p>
           </Link>
-
+           <div  style={moduleGrid}>
+              <Link to="/purchase" className="module-card" style={cardStyle}>
+  <div style={cardIcon}>🛒</div>
+  <h3 style={cardTitle}>Purchase</h3>
+  <p style={cardDesc}>
+    Procurement, suppliers & inventory purchasing
+  </p>
+</Link>
+        </div>
           {/* Placeholder cards — style them as coming soon */}
          <div style = {moduleGrid}>
           <Link to="/orders" className="module-card" style={cardStyle}>

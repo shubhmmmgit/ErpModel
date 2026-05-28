@@ -7,6 +7,7 @@ import productRoutes from "./routes/productRoutes.js";
 import orderRoutes   from "./routes/orderRoute.js";
 import crmRoutes     from "./routes/crmRoutes.js";
 import { authMiddleware } from "./middlewares/authmiddleware.js";
+import purchaseRoutes from "./routes/purchaseRoutes.js"; 
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use("/api/auth",     authRoutes);
 app.use("/api/products", authMiddleware, productRoutes);
 app.use("/api/orders",   authMiddleware, orderRoutes);
 app.use("/api/crm",      authMiddleware, crmRoutes);
+app.use("/api/purchase", authMiddleware, purchaseRoutes); 
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -90,7 +90,7 @@ export const updateProduct = async (req, res) => {
        SET name = $1, price = $2, stock = $3, attributes = $4
        WHERE id = $5 AND business_id = $6
        RETURNING *`,
-      //          ^^^^^^^^^^^ was businessId
+      
       [name, price, stock, attributes || {}, id, businessId]
     );
 
