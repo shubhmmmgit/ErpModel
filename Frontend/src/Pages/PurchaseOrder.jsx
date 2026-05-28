@@ -9,7 +9,7 @@ import {
   StatusBadge,
   PO_STATUS,
   inputStyle,
-} from "./purchaseShared.jsx";
+} from "./Purchaseshared.jsx";
 
 export default function PurchaseOrders() {
   const [orders, setOrders] = useState([]);

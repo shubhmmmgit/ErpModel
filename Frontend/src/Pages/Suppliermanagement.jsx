@@ -4,7 +4,7 @@ import {
   C, PR_STATUS, StatusBadge, Modal, FormInput, Btn, Table, Td, Tr,
   inputStyle, selectStyle, cardStyle, sectionTitle, fmtCurrency, fmtDate,
   useToast, SearchBar, FilterSelect, monoStyle
-} from "./purchaseShared.jsx";
+} from "./Purchaseshared.jsx";
 
 const EMPTY = { name:"", email:"", phone:"", address:"", city:"", country:"",
                 gstin:"", payment_terms:"", lead_time_days:0, notes:"", status:"active" };

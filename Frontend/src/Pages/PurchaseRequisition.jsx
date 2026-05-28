@@ -11,7 +11,7 @@ import {
   sectionTitle,
   inputStyle,
   selectStyle,
-} from "./purchaseShared.jsx";
+} from "./Purchaseshared.jsx";
 
 const MOCK = [
   {

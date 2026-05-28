@@ -9,7 +9,7 @@ import {
   Tr,
   StatusBadge,
   C,
-} from "./purchaseShared.jsx";
+} from "./Purchaseshared.jsx";
 
 const RFQ_STATUS = {
   open: { label: "Open", bg: "rgba(251,191,36,0.12)", color: C.yellow },

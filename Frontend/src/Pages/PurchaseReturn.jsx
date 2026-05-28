@@ -9,7 +9,7 @@ import {
   Tr,
   StatusBadge,
   RET_STATUS,
-} from "./purchaseShared.jsx";
+} from "./Purchaseshared.jsx";
 
 export default function PurchaseReturn() {
   const [returns, setReturns] = useState([]);
