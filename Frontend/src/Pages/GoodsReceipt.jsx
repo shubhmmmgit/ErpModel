@@ -8,7 +8,7 @@ import {
   Td,
   Tr,
   C,
-} from "./purchaseShared.jsx";
+} from "./Purchaseshared.jsx";
 
 export default function GoodsReceipt() {
   const [grns, setGrns] = useState([]);

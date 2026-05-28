@@ -9,7 +9,7 @@ import {
   Tr,
   StatusBadge,
   INV_STATUS,
-} from "./purchaseShared.jsx";
+} from "./Purchaseshared.jsx";
 
 export default function PurchaseInvoice() {
   const [invoices, setInvoices] = useState([]);
