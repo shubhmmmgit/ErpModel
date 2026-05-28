@@ -6,7 +6,7 @@ import Home from "./Pages/Home";
 import ProductModule from "./Pages/ProductModule";
 import OrderModule from "./Pages/OrderModule";
 import CRMModule from "./Pages/CrmModule";
-import PurchaseModule from "./Pages/PurchaseModule";
+import PurchaseModule from "./Pages/Purchasemodule";
 
 import Auth from "./Components/Auth";
 
