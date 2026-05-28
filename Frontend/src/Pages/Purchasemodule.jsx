@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 // ── Sub-view imports ─────────────────────────────────────────
-import PurchaseDashboard   from "./PurchaseDashboard.jsx";
+import PurchaseDashboard   from "./Purchasedashboard.jsx";
 import SupplierManagement  from "./Suppliermanagement.jsx";
 import PurchaseRequisition from "./PurchaseRequisition.jsx";
 import RFQModule           from "./RFQModule.jsx";

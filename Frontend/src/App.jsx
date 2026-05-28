@@ -1,15 +1,12 @@
 import Header from "./Components/Header";
 import Footer from "./Components/Footer";
 import Sidebar from "./Components/SideBar";
-
 import Home from "./Pages/Home";
 import ProductModule from "./Pages/ProductModule";
 import OrderModule from "./Pages/OrderModule";
 import CRMModule from "./Pages/CrmModule";
 import PurchaseModule from "./Pages/Purchasemodule";
-
 import Auth from "./Components/Auth";
-
 import { Routes, Route } from "react-router-dom";
 
 export default function App() {
