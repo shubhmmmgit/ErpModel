@@ -1,57 +1,65 @@
 // controllers/invoiceController.js
+// FIXED: Uses req.user.userId; stock reversal uses products.user_id
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
 
-const generateNumber = async (client, businessId, prefix, table, col) => {
+const genNumber = async (client, userId, prefix, table, col) => {
   const year = new Date().getFullYear();
   const { rows } = await client.query(
-    `SELECT COUNT(*) FROM ${table} WHERE business_id=$1 AND ${col} LIKE $2`,
-    [businessId, `${prefix}-${year}-%`]
+    `SELECT COUNT(*) FROM ${table} WHERE user_id = $1 AND ${col} LIKE $2`,
+    [userId, `${prefix}-${year}-%`]
   );
   return `${prefix}-${year}-${String(parseInt(rows[0].count) + 1).padStart(4, "0")}`;
 };
 
-// ── CREATE INVOICE ───────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  INVOICE
+// ═══════════════════════════════════════════════════════════════════════════
 export const createInvoice = async (req, res) => {
   const client = await pool.connect();
   try {
-    const { businessId, userId } = req.user;
+    const userId = req.user.userId;
     const {
       invoice_number, po_id, grn_id, supplier_id,
       invoice_date, due_date, subtotal, tax_amount,
-      discount_amount, total_amount, notes
+      discount_amount, total_amount, notes,
     } = req.body;
 
-    if (!supplier_id) return res.status(400).json({ error: "Supplier is required" });
+    if (!supplier_id)    return res.status(400).json({ error: "Supplier is required" });
     if (!invoice_number?.trim()) return res.status(400).json({ error: "Invoice number is required" });
-    if (!total_amount || total_amount <= 0) return res.status(400).json({ error: "Total amount must be > 0" });
+    if (!total_amount || parseFloat(total_amount) <= 0) return res.status(400).json({ error: "Total amount must be > 0" });
 
-    // Validate supplier
     const suppCheck = await client.query(
-      "SELECT id FROM suppliers WHERE id=$1 AND business_id=$2",
-      [supplier_id, businessId]
+      "SELECT id FROM suppliers WHERE id = $1 AND user_id = $2", [supplier_id, userId]
     );
     if (!suppCheck.rows.length) return res.status(400).json({ error: "Supplier not found" });
 
-    await client.query("BEGIN");
-    const internal_ref = await generateNumber(client, businessId, "INV", "purchase_invoices", "internal_ref");
+    if (po_id) {
+      const poCheck = await client.query(
+        "SELECT id FROM purchase_orders WHERE id = $1 AND user_id = $2", [po_id, userId]
+      );
+      if (!poCheck.rows.length) return res.status(400).json({ error: "Purchase Order not found" });
+    }
 
-    const invResult = await client.query(
+    await client.query("BEGIN");
+    const internal_ref = await genNumber(client, userId, "INV", "purchase_invoices", "internal_ref");
+
+    const result = await client.query(
       `INSERT INTO purchase_invoices
-         (business_id, invoice_number, internal_ref, po_id, grn_id, supplier_id,
+         (user_id, invoice_number, internal_ref, po_id, grn_id, supplier_id,
           created_by, invoice_date, due_date, subtotal, tax_amount, discount_amount,
           total_amount, balance_due, notes, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14,'pending')
        RETURNING *`,
-      [businessId, invoice_number.trim(), internal_ref, po_id||null, grn_id||null,
-       supplier_id, userId, invoice_date||new Date().toISOString().split('T')[0],
-       due_date||null, subtotal||0, tax_amount||0, discount_amount||0,
-       total_amount, notes||null]
+      [userId, invoice_number.trim(), internal_ref, po_id || null, grn_id || null,
+       supplier_id, userId, invoice_date || new Date().toISOString().split("T")[0],
+       due_date || null, subtotal || 0, tax_amount || 0, discount_amount || 0,
+       total_amount, notes || null]
     );
 
     await client.query("COMMIT");
-    await logActivity(businessId, 'invoice', invResult.rows[0].id, 'created', userId, { internal_ref });
-    res.status(201).json(invResult.rows[0]);
+    await logActivity(userId, "invoice", result.rows[0].id, "created", userId, { internal_ref });
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("CREATE INVOICE ERROR:", err);
@@ -61,15 +69,14 @@ export const createInvoice = async (req, res) => {
   }
 };
 
-// ── LIST INVOICES ────────────────────────────────────────────
 export const getInvoices = async (req, res) => {
   try {
-    const { businessId } = req.user;
+    const userId = req.user.userId;
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let conditions = ["i.business_id = $1"];
-    const params = [businessId];
+    const conditions = ["i.user_id = $1"];
+    const params     = [userId];
     if (status) { params.push(status); conditions.push(`i.status = $${params.length}`); }
 
     const result = await pool.query(
@@ -83,117 +90,138 @@ export const getInvoices = async (req, res) => {
       [...params, parseInt(limit), offset]
     );
 
-    res.json({ invoices: result.rows });
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM purchase_invoices i WHERE ${conditions.join(" AND ")}`, params
+    );
+    res.json({ invoices: result.rows, total: parseInt(countRes.rows[0].count) });
   } catch (err) {
     console.error("GET INVOICES ERROR:", err);
-    res.status(500).json({ error: "Failed to fetch invoices" });
+    res.status(500).json({ error: err.message });
   }
 };
 
-// ── RECORD PAYMENT ───────────────────────────────────────────
+export const getInvoiceById = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const result = await pool.query(
+      `SELECT i.*, s.name AS supplier_name, po.po_number
+       FROM purchase_invoices i
+       LEFT JOIN suppliers s ON s.id = i.supplier_id
+       LEFT JOIN purchase_orders po ON po.id = i.po_id
+       WHERE i.id = $1 AND i.user_id = $2`,
+      [req.params.id, userId]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: "Invoice not found" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const recordPayment = async (req, res) => {
   try {
-    const { businessId, userId } = req.user;
+    const userId = req.user.userId;
     const { id } = req.params;
     const { paid_amount, payment_method, payment_date } = req.body;
 
+    if (!paid_amount || parseFloat(paid_amount) <= 0) {
+      return res.status(400).json({ error: "Payment amount must be > 0" });
+    }
+
     const inv = await pool.query(
-      "SELECT * FROM purchase_invoices WHERE id=$1 AND business_id=$2",
-      [id, businessId]
+      "SELECT * FROM purchase_invoices WHERE id = $1 AND user_id = $2", [id, userId]
     );
     if (!inv.rows.length) return res.status(404).json({ error: "Invoice not found" });
-    if (inv.rows[0].status === 'paid') return res.status(400).json({ error: "Invoice already paid" });
+    if (inv.rows[0].status === "paid") return res.status(400).json({ error: "Invoice already fully paid" });
 
-    const newPaid = parseFloat(inv.rows[0].paid_amount) + parseFloat(paid_amount);
-    const balance = parseFloat(inv.rows[0].total_amount) - newPaid;
-    const newStatus = balance <= 0 ? 'paid' : 'partially_paid';
+    const newPaid   = parseFloat(inv.rows[0].paid_amount) + parseFloat(paid_amount);
+    const balance   = Math.max(0, parseFloat(inv.rows[0].total_amount) - newPaid);
+    const newStatus = balance <= 0 ? "paid" : "partially_paid";
 
     await pool.query(
       `UPDATE purchase_invoices
-       SET paid_amount=$1, balance_due=$2, status=$3, payment_method=$4, payment_date=$5, updated_at=NOW()
-       WHERE id=$6 AND business_id=$7`,
-      [newPaid, Math.max(0, balance), newStatus, payment_method||null,
-       payment_date||new Date().toISOString().split('T')[0], id, businessId]
+       SET paid_amount=$1, balance_due=$2, status=$3,
+           payment_method=$4, payment_date=$5, updated_at=NOW()
+       WHERE id=$6 AND user_id=$7`,
+      [newPaid, balance, newStatus, payment_method || null,
+       payment_date || new Date().toISOString().split("T")[0], id, userId]
     );
 
-    await logActivity(businessId, 'invoice', id, 'payment_recorded', userId, { paid_amount, newStatus });
-    res.json({ message: "Payment recorded", status: newStatus, balance_due: Math.max(0, balance) });
+    await logActivity(userId, "invoice", id, "payment_recorded", userId, { paid_amount, newStatus });
+    res.json({ message: "Payment recorded", status: newStatus, balance_due: balance });
   } catch (err) {
     console.error("RECORD PAYMENT ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
-
-// ============================================================
-//  PURCHASE RETURN CONTROLLER (same file for brevity)
-// ============================================================
+// ═══════════════════════════════════════════════════════════════════════════
+//  PURCHASE RETURN
+// ═══════════════════════════════════════════════════════════════════════════
 export const createReturn = async (req, res) => {
   const client = await pool.connect();
   try {
-    const { businessId, userId } = req.user;
+    const userId = req.user.userId;
     const { po_id, grn_id, supplier_id, return_date, reason, notes, items } = req.body;
 
     if (!supplier_id) return res.status(400).json({ error: "Supplier is required" });
     if (!items?.length) return res.status(400).json({ error: "At least one item is required" });
-
     for (const item of items) {
       if (!item.item_name?.trim()) return res.status(400).json({ error: "Each item needs a name" });
-      if (!item.return_qty || item.return_qty <= 0) return res.status(400).json({ error: "Return quantity must be > 0" });
+      if (!item.return_qty || parseFloat(item.return_qty) <= 0) return res.status(400).json({ error: "Return qty must be > 0" });
     }
+
+    const suppCheck = await client.query(
+      "SELECT id FROM suppliers WHERE id = $1 AND user_id = $2", [supplier_id, userId]
+    );
+    if (!suppCheck.rows.length) return res.status(400).json({ error: "Supplier not found" });
 
     await client.query("BEGIN");
     const year = new Date().getFullYear();
     const { rows } = await client.query(
-      "SELECT COUNT(*) FROM purchase_returns WHERE business_id=$1 AND return_number LIKE $2",
-      [businessId, `RTN-${year}-%`]
+      "SELECT COUNT(*) FROM purchase_returns WHERE user_id = $1 AND return_number LIKE $2",
+      [userId, `RTN-${year}-%`]
     );
     const return_number = `RTN-${year}-${String(parseInt(rows[0].count) + 1).padStart(4, "0")}`;
-
-    const totalAmount = items.reduce(
-      (s, i) => s + parseFloat(i.return_qty) * parseFloat(i.unit_price || 0), 0
-    );
+    const totalAmount   = items.reduce((s, i) => s + parseFloat(i.return_qty) * parseFloat(i.unit_price || 0), 0);
 
     const retResult = await client.query(
       `INSERT INTO purchase_returns
-         (business_id, return_number, po_id, grn_id, supplier_id, created_by,
+         (user_id, return_number, po_id, grn_id, supplier_id, created_by,
           return_date, reason, notes, total_amount, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
        RETURNING *`,
-      [businessId, return_number, po_id||null, grn_id||null, supplier_id, userId,
-       return_date||new Date().toISOString().split('T')[0], reason||null, notes||null, totalAmount]
+      [userId, return_number, po_id || null, grn_id || null, supplier_id, userId,
+       return_date || new Date().toISOString().split("T")[0], reason || null, notes || null, totalAmount]
     );
     const ret = retResult.rows[0];
 
     for (const item of items) {
       await client.query(
         `INSERT INTO purchase_return_items
-           (return_id, business_id, product_id, item_name, return_qty, unit, unit_price, total_price, reason)
+           (return_id, user_id, product_id, item_name, return_qty, unit, unit_price, total_price, reason)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [ret.id, businessId, item.product_id||null, item.item_name.trim(),
-         item.return_qty, item.unit||'pcs', item.unit_price||0,
-         parseFloat(item.return_qty) * parseFloat(item.unit_price || 0), item.reason||null]
+        [ret.id, userId, item.product_id || null, item.item_name.trim(),
+         item.return_qty, item.unit || "pcs", item.unit_price || 0,
+         parseFloat(item.return_qty) * parseFloat(item.unit_price || 0), item.reason || null]
       );
 
-      // ── INVENTORY INTEGRATION: decrease stock on return ──
+      // ── INVENTORY: decrease stock on return ───────────────────────────────
       if (item.product_id) {
         await client.query(
-          `UPDATE products SET stock=GREATEST(0, stock-$1), updated_at=NOW()
-           WHERE id=$2 AND user_id=$3`,
-          [item.return_qty, item.product_id, businessId]
+          "UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2 AND user_id = $3",
+          [item.return_qty, item.product_id, userId]
         );
       }
     }
 
-    // Update supplier return count
     await client.query(
-      "UPDATE suppliers SET total_returns=total_returns+1, updated_at=NOW() WHERE id=$1",
-      [supplier_id]
+      "UPDATE suppliers SET total_returns = total_returns + 1, updated_at = NOW() WHERE id = $1 AND user_id = $2",
+      [supplier_id, userId]
     );
 
     await client.query("COMMIT");
-    await logActivity(businessId, 'return', ret.id, 'created', userId, { return_number });
-
+    await logActivity(userId, "return", ret.id, "created", userId, { return_number });
     res.status(201).json(ret);
   } catch (err) {
     await client.query("ROLLBACK");
@@ -206,12 +234,12 @@ export const createReturn = async (req, res) => {
 
 export const getReturns = async (req, res) => {
   try {
-    const { businessId } = req.user;
+    const userId = req.user.userId;
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let conditions = ["r.business_id = $1"];
-    const params = [businessId];
+    const conditions = ["r.user_id = $1"];
+    const params     = [userId];
     if (status) { params.push(status); conditions.push(`r.status = $${params.length}`); }
 
     const result = await pool.query(
@@ -225,30 +253,35 @@ export const getReturns = async (req, res) => {
       [...params, parseInt(limit), offset]
     );
 
-    res.json({ returns: result.rows });
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM purchase_returns r WHERE ${conditions.join(" AND ")}`, params
+    );
+    res.json({ returns: result.rows, total: parseInt(countRes.rows[0].count) });
   } catch (err) {
     console.error("GET RETURNS ERROR:", err);
-    res.status(500).json({ error: "Failed to fetch returns" });
+    res.status(500).json({ error: err.message });
   }
 };
 
 export const updateReturnStatus = async (req, res) => {
   try {
-    const { businessId, userId } = req.user;
+    const userId = req.user.userId;
     const { id } = req.params;
     const { status } = req.body;
 
-    const VALID = ['draft','pending','approved','shipped','completed','cancelled'];
-    if (!VALID.includes(status)) {
-      return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID.join(', ')}` });
-    }
+    const VALID = ["draft","pending","approved","shipped","completed","cancelled"];
+    if (!VALID.includes(status)) return res.status(400).json({ error: `Invalid status. Valid: ${VALID.join(", ")}` });
+
+    const existing = await pool.query(
+      "SELECT id FROM purchase_returns WHERE id = $1 AND user_id = $2", [id, userId]
+    );
+    if (!existing.rows.length) return res.status(404).json({ error: "Return not found" });
 
     await pool.query(
-      "UPDATE purchase_returns SET status=$1, updated_at=NOW() WHERE id=$2 AND business_id=$3",
-      [status, id, businessId]
+      "UPDATE purchase_returns SET status = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3",
+      [status, id, userId]
     );
-
-    await logActivity(businessId, 'return', id, `status_${status}`, userId, {});
+    await logActivity(userId, "return", id, `status_${status}`, userId, {});
     res.json({ message: "Return status updated", id, status });
   } catch (err) {
     console.error("UPDATE RETURN STATUS ERROR:", err);

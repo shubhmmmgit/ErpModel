@@ -99,7 +99,7 @@ export default function PurchaseDashboard() {
   if (loading) return <LoadingState />;
   if (!data)   return <p style={{ color: C.muted }}>Failed to load dashboard.</p>;
 
-  const {
+ const {
   pr = {},
   po = {},
   invoice = {},

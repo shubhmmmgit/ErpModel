@@ -10,34 +10,46 @@ export default function Auth() {
   });
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    const url = isLogin ? "/api/auth/login" : "/api/auth/signup";
+  if (loading) return;
 
-    const res  = await apiFetch(url, {
-      method:      "POST",
-      headers:     { "Content-Type": "application/json" },
-      credentials: "include",
-      body:        JSON.stringify(form)
+  setLoading(true);
+
+  try {
+
+    const url = isLogin
+      ? "/api/auth/login"
+      : "/api/auth/signup";
+
+    const data = await apiFetch(url, {
+      method: "POST",
+      body: JSON.stringify(form)
     });
 
-    const data = await res.json();
-    setLoading(false);
-
-    if (!res.ok) {
-      alert(data.error || "Something went wrong");
-      return;
+    // Save authenticated user
+    if (data?.user) {
+      localStorage.setItem(
+        "erpUser",
+        JSON.stringify(data.user)
+      );
     }
 
-    // Save full user object (includes businessId + businessName) to localStorage
-    if (data.user) {
-      localStorage.setItem("erpUser", JSON.stringify(data.user));
-    }
-
+    // Redirect to dashboard
     navigate("/");
-  };
+
+  } catch (err) {
+
+    console.error("AUTH ERROR:", err);
+
+    alert(err.message || "Authentication failed");
+
+  } finally {
+
+    setLoading(false);
+  }
+};
 
   return (
     <div style={container}>
