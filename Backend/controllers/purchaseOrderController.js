@@ -1,13 +1,12 @@
-// controllers/purchaseOrderController.js
-// FIXED: Uses req.user.userId; all queries use user_id column
+
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
 
-const genNumber = async (client, userId, prefix, table, col) => {
+const genNumber = async (client, businessId, prefix, table, col) => {
   const year = new Date().getFullYear();
   const { rows } = await client.query(
-    `SELECT COUNT(*) FROM ${table} WHERE user_id = $1 AND ${col} LIKE $2`,
-    [userId, `${prefix}-${year}-%`]
+    `SELECT COUNT(*) FROM ${table} WHERE business_id = $1 AND ${col} LIKE $2`,
+    [businessId, `${prefix}-${year}-%`]
   );
   return `${prefix}-${year}-${String(parseInt(rows[0].count) + 1).padStart(4, "0")}`;
 };
@@ -16,7 +15,7 @@ const genNumber = async (client, userId, prefix, table, col) => {
 export const createPO = async (req, res) => {
   const client = await pool.connect();
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const {
       pr_id, rfq_id, supplier_id, delivery_date,
       payment_terms, shipping_address, notes, items, discount_amount,
@@ -26,8 +25,8 @@ export const createPO = async (req, res) => {
     if (!items?.length) return res.status(400).json({ error: "At least one item is required" });
 
     const suppCheck = await client.query(
-      "SELECT id FROM suppliers WHERE id = $1 AND user_id = $2 AND status = 'active'",
-      [supplier_id, userId]
+      "SELECT id FROM suppliers WHERE id = $1 AND business_id = $2 AND status = 'active'",
+      [supplier_id, businessId]
     );
     if (!suppCheck.rows.length) return res.status(400).json({ error: "Supplier not found or inactive" });
 
@@ -37,7 +36,7 @@ export const createPO = async (req, res) => {
     }
 
     await client.query("BEGIN");
-    const po_number = await genNumber(client, userId, "PO", "purchase_orders", "po_number");
+    const po_number = await genNumber(client, businessId, "PO", "purchase_orders", "po_number");
 
     let subtotal = 0;
     const enrichedItems = items.map(item => {
@@ -56,12 +55,12 @@ export const createPO = async (req, res) => {
 
     const poResult = await client.query(
       `INSERT INTO purchase_orders
-         (user_id, po_number, pr_id, rfq_id, supplier_id, created_by,
+         (business_id, po_number, pr_id, rfq_id, supplier_id, created_by,
           delivery_date, payment_terms, shipping_address, notes,
           subtotal, tax_amount, discount_amount, total_amount, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'sent')
        RETURNING *`,
-      [userId, po_number, pr_id || null, rfq_id || null, supplier_id, userId,
+      [businessId, po_number, pr_id || null, rfq_id || null, supplier_id, businessId,
        delivery_date || null, payment_terms || null, shipping_address || null, notes || null,
        subtotal, taxAmount, discountAmt, totalAmount]
     );
@@ -70,10 +69,10 @@ export const createPO = async (req, res) => {
     for (const item of enrichedItems) {
       await client.query(
         `INSERT INTO purchase_order_items
-           (po_id, user_id, product_id, item_name, description,
+           (po_id, business_id, product_id, item_name, description,
             quantity, unit, unit_price, tax_percent, discount_percent, total_price)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-        [po.id, userId, item.product_id || null, item.item_name.trim(),
+        [po.id, businessId, item.product_id || null, item.item_name.trim(),
          item.description || null, item.quantity, item.unit || "pcs",
          item.unit_price || 0, item.tax_percent || 0, item.discount_percent || 0, item.total_price]
       );
@@ -81,20 +80,20 @@ export const createPO = async (req, res) => {
 
     if (pr_id) {
       await client.query(
-        "UPDATE purchase_requisitions SET status = 'ordered', updated_at = NOW() WHERE id = $1 AND user_id = $2",
-        [pr_id, userId]
+        "UPDATE purchase_requisitions SET status = 'ordered', updated_at = NOW() WHERE id = $1 AND business_id = $2",
+        [pr_id, businessId]
       );
     }
 
     await client.query(
-      "UPDATE suppliers SET total_orders = total_orders + 1, updated_at = NOW() WHERE id = $1 AND user_id = $2",
-      [supplier_id, userId]
+      "UPDATE suppliers SET total_orders = total_orders + 1, updated_at = NOW() WHERE id = $1 AND business_id = $2",
+      [supplier_id, businessId]
     );
 
     await client.query("COMMIT");
-    await logActivity(userId, "po", po.id, "created", userId, { po_number, supplier_id });
+    await logActivity(businessId, "po", po.id, "created", businessId, { po_number, supplier_id });
 
-    const full = await getFullPO(po.id, userId);
+    const full = await getFullPO(po.id, businessId);
     res.status(201).json(full);
   } catch (err) {
     await client.query("ROLLBACK");
@@ -108,12 +107,12 @@ export const createPO = async (req, res) => {
 // ── LIST ──────────────────────────────────────────────────────────────────────
 export const getPOs = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { status, supplier_id, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const conditions = ["po.user_id = $1"];
-    const params     = [userId];
+    const conditions = ["po.business_id = $1"];
+    const params     = [businessId];
     if (status)      { params.push(status);               conditions.push(`po.status = $${params.length}`); }
     if (supplier_id) { params.push(parseInt(supplier_id)); conditions.push(`po.supplier_id = $${params.length}`); }
 
@@ -143,7 +142,7 @@ export const getPOs = async (req, res) => {
 // ── GET SINGLE ────────────────────────────────────────────────────────────────
 export const getPOById = async (req, res) => {
   try {
-    const full = await getFullPO(req.params.id, req.user.userId);
+    const full = await getFullPO(req.params.id, req.user.businessId);
     if (!full) return res.status(404).json({ error: "Purchase order not found" });
     res.json(full);
   } catch (err) {
@@ -154,7 +153,7 @@ export const getPOById = async (req, res) => {
 // ── UPDATE STATUS ─────────────────────────────────────────────────────────────
 export const updatePOStatus = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { id } = req.params;
     const { status } = req.body;
 
@@ -164,7 +163,7 @@ export const updatePOStatus = async (req, res) => {
     }
 
     const po = await pool.query(
-      "SELECT * FROM purchase_orders WHERE id = $1 AND user_id = $2", [id, userId]
+      "SELECT * FROM purchase_orders WHERE id = $1 AND business_id = $2", [id, businessId]
     );
     if (!po.rows.length) return res.status(404).json({ error: "Purchase order not found" });
     if (["cancelled","closed"].includes(po.rows[0].status)) {
@@ -172,10 +171,10 @@ export const updatePOStatus = async (req, res) => {
     }
 
     await pool.query(
-      "UPDATE purchase_orders SET status = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3",
-      [status, id, userId]
+      "UPDATE purchase_orders SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3",
+      [status, id, businessId]
     );
-    await logActivity(userId, "po", id, `status_${status}`, userId, {});
+    await logActivity(businessId, "po", id, `status_${status}`, businessId, {});
     res.json({ message: "Status updated", id, status });
   } catch (err) {
     console.error("UPDATE PO STATUS ERROR:", err);
@@ -184,13 +183,13 @@ export const updatePOStatus = async (req, res) => {
 };
 
 // ── HELPER ────────────────────────────────────────────────────────────────────
-const getFullPO = async (id, userId) => {
+const getFullPO = async (id, businessId) => {
   const poRes = await pool.query(
     `SELECT po.*, s.name AS supplier_name, s.email AS supplier_email, s.phone AS supplier_phone
      FROM purchase_orders po
      LEFT JOIN suppliers s ON s.id = po.supplier_id
-     WHERE po.id = $1 AND po.user_id = $2`,
-    [id, userId]
+     WHERE po.id = $1 AND po.business_id = $2`,
+    [id, businessId]
   );
   if (!poRes.rows.length) return null;
   const po = poRes.rows[0];

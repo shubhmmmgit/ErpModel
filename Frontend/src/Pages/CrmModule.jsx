@@ -31,33 +31,30 @@ export default function CRMModule() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
 
-  const fetchSummary = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiFetch("/api/crm/summary");
+ const fetchSummary = useCallback(async () => {
 
-     
-      if (res.status === 401) {
-        navigate("/auth");
-        return;
-      }
+  setLoading(true);
 
-      const data = await res.json();
+  setError(null);
 
-      if (!res.ok) {
-        setError(data.error || "Failed to load CRM data");
-        setLoading(false);
-        return;
-      }
+  try {
 
-      setSummary(data);
-    } catch (err) {
-      setError("Network error — is the server running?");
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate]);
+    const data = await apiFetch("/api/crm/summary");
+
+    setSummary(data);
+
+  } catch (err) {
+
+    console.error(err);
+
+    setError("Network error — is the server running?");
+
+  } finally {
+
+    setLoading(false);
+  }
+
+}, []);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
@@ -255,9 +252,11 @@ function Customers({ onRefresh, navigate }) {
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    const res  = await fetch(`/api/crm/customers?search=${encodeURIComponent(search)}&limit=50`);
-    if (res.status === 401) { navigate("/auth"); return; }
-    const data = await res.json();
+   
+    const data = await apiFetch(
+  `/api/crm/customers?search=${encodeURIComponent(search)}&limit=50`
+);
+
     setCustomers(data.customers || []);
     setLoading(false);
   }, [search, navigate]);
@@ -265,8 +264,8 @@ function Customers({ onRefresh, navigate }) {
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
   const openDetail = async (id) => {
-    const res  = await fetch(`/api/crm/customers/${id}`);
-    const data = await res.json();
+    const data = await apiFetch(`/api/crm/customers/${id}`);
+    
     setSelected(data);
   };
 
@@ -275,10 +274,12 @@ function Customers({ onRefresh, navigate }) {
     setSubmitting(true);
     setApiError("");
     const payload = { ...addForm, tags: addForm.tags ? addForm.tags.split(",").map(t=>t.trim()).filter(Boolean) : [] };
-    const res  = await fetch("/api/crm/customers", { method:"POST", credentials:"include", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload) });
-    const data = await res.json();
+    const data = await apiFetch("/api/crm/customers", {
+  method: "POST",
+  body: JSON.stringify(payload)
+});
     setSubmitting(false);
-    if (!res.ok) { setApiError(data.error || "Failed to add customer"); return; }
+    
     setShowAdd(false);
     setAddForm({ name:"", email:"", phone:"", tags:"", notes:"" });
     fetchCustomers(); onRefresh();
@@ -286,13 +287,13 @@ function Customers({ onRefresh, navigate }) {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this customer?")) return;
-    await fetch(`/api/crm/customers/${id}`, { method:"DELETE" });
+    await apiFetch(`/api/crm/customers/${id}`, { method:"DELETE" });
     fetchCustomers(); onRefresh();
   };
 
   const addNote = async (e) => {
     e.preventDefault();
-    const res = await fetch("/api/crm/interactions", {
+    const res = await apiFetch("/api/crm/interactions", {
       method:"POST", credentials:"include",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ customer_id: selected.id, ...noteForm })
@@ -302,7 +303,7 @@ function Customers({ onRefresh, navigate }) {
 
   const addFollowUp = async (e) => {
     e.preventDefault();
-    const res = await fetch("/api/crm/followups", {
+    const res = await apiFetch("/api/crm/followups", {
       method:"POST", credentials:"include",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ customer_id: selected.id, ...fuForm })
@@ -472,8 +473,8 @@ function LeadBoard({ onRefresh }) {
 
   const fetchLeads = async () => {
     setLoading(true);
-    const res  = await fetch("/api/crm/leads?limit=100", { credentials:"include" });
-    const data = await res.json();
+    const res  = await apiFetch("/api/crm/leads?limit=100", { credentials:"include" });
+    
     setLeads(Array.isArray(data) ? data : []);
     setLoading(false);
   };
@@ -484,12 +485,12 @@ function LeadBoard({ onRefresh }) {
     e.preventDefault();
     setSubmitting(true);
     setApiError("");
-    const res  = await fetch("/api/crm/leads", {
+    const res  = await apiFetch("/api/crm/leads", {
       method:"POST", credentials:"include",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ ...form, value: parseFloat(form.value)||0 })
     });
-    const data = await res.json();
+    
     setSubmitting(false);
     if (!res.ok) { setApiError(data.error || "Failed to add lead"); return; }
     setShowAdd(false);
@@ -498,7 +499,7 @@ function LeadBoard({ onRefresh }) {
   };
 
   const changeStatus = async (id, status) => {
-    await fetch(`/api/crm/leads/${id}/status`, {
+    await apiFetch(`/api/crm/leads/${id}/status`, {
       method:"PATCH", credentials:"include",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ status })
@@ -508,8 +509,8 @@ function LeadBoard({ onRefresh }) {
 
   const convertLead = async (id) => {
     if (!window.confirm("Convert this lead to a customer?")) return;
-    const res  = await fetch(`/api/crm/leads/${id}/convert`, { method:"POST", credentials:"include" });
-    const data = await res.json();
+    const res  = await apiFetch(`/api/crm/leads/${id}/convert`, { method:"POST", credentials:"include" });
+    
     if (!res.ok) { alert(data.error); return; }
     alert("✅ Lead converted to customer!");
     fetchLeads(); onRefresh();
@@ -517,7 +518,7 @@ function LeadBoard({ onRefresh }) {
 
   const deleteLead = async (id) => {
     if (!window.confirm("Delete this lead?")) return;
-    await fetch(`/api/crm/leads/${id}`, { method:"DELETE", credentials:"include" });
+    await apiFetch(`/api/crm/leads/${id}`, { method:"DELETE", credentials:"include" });
     fetchLeads(); onRefresh();
   };
 
@@ -619,8 +620,8 @@ function FollowUps({ onRefresh }) {
 
   const fetchFu = async () => {
     setLoading(true);
-    const res  = await fetch("/api/crm/followups", { credentials:"include" });
-    const data = await res.json();
+    const res  = await apiFetch("/api/crm/followups", { credentials:"include" });
+    
     setAll(Array.isArray(data) ? data : []);
     setLoading(false);
   };
@@ -628,7 +629,7 @@ function FollowUps({ onRefresh }) {
   useEffect(() => { fetchFu(); }, []);
 
   const markDone = async (id) => {
-    await fetch(`/api/crm/followups/${id}/done`, { method:"PATCH" });
+    await apiFetch(`/api/crm/followups/${id}/done`, { method:"PATCH" });
     fetchFu(); onRefresh();
   };
 

@@ -1,19 +1,11 @@
-// controllers/supplierController.js
-// ─────────────────────────────────────────────────────────────────────────────
-//  FIXED:
-//  1. Uses req.user.userId (not businessId)
-//  2. FIXED "missing FROM-clause entry for table s" — the subquery that
-//     referenced `s.user_id` and `s.id` inside a correlated subquery without
-//     a table alias was broken. Now uses simple scalar subqueries correctly.
-//  3. All queries scoped by user_id (multi-tenant security maintained)
-// ─────────────────────────────────────────────────────────────────────────────
+
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
 
 // ── CREATE ────────────────────────────────────────────────────────────────────
 export const createSupplier = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const { businessId } = req.user;
     const {
       name, email, phone, address, city, country,
       gstin, payment_terms, lead_time_days, notes,
@@ -26,8 +18,8 @@ export const createSupplier = async (req, res) => {
     // Duplicate name check (within this tenant only)
     const dup = await pool.query(
       `SELECT id FROM suppliers
-       WHERE user_id = $1 AND LOWER(name) = LOWER($2) AND status <> 'inactive'`,
-      [userId, name.trim()]
+       WHERE business_id = $1 AND LOWER(name) = LOWER($2) AND status <> 'inactive'`,
+      [businessId, name.trim()]
     );
     if (dup.rows.length) {
       return res.status(409).json({ error: "A supplier with this name already exists" });
@@ -35,18 +27,18 @@ export const createSupplier = async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO suppliers
-         (user_id, name, email, phone, address, city, country,
+         (business_id, name, email, phone, address, city, country,
           gstin, payment_terms, lead_time_days, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
       [
-        userId, name.trim(), email || null, phone || null, address || null,
+        businessId, name.trim(), email || null, phone || null, address || null,
         city || null, country || null, gstin || null,
         payment_terms || null, lead_time_days || 0, notes || null,
       ]
     );
 
-    await logActivity(userId, "supplier", result.rows[0].id, "created", userId, { name: name.trim() });
+    await logActivity(businessId, "supplier", result.rows[0].id, "created", businessId, { name: name.trim() });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("CREATE SUPPLIER ERROR:", err);
@@ -59,13 +51,13 @@ export const createSupplier = async (req, res) => {
 // query's FROM clause. Now uses clean correlated subqueries with explicit ids.
 export const getSuppliers = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId}= req.user;
     const { status, search, page = 1, limit = 50 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     // Build dynamic WHERE clause
-    const conditions = ["user_id = $1"];
-    const params     = [userId];
+    const conditions = ["business_id = $1"];
+    const params     = [businessId];
 
     if (status) {
       params.push(status);
@@ -99,9 +91,9 @@ export const getSuppliers = async (req, res) => {
            COALESCE(SUM(total_amount) FILTER (WHERE status <> 'cancelled'), 0)     AS total_purchase_value
          FROM purchase_orders
          WHERE supplier_id = ANY($1::int[])
-           AND user_id     = $2
+           AND business_id     = $2
          GROUP BY supplier_id`,
-        [ids, userId]
+        [ids, businessId]
       );
       statsRes.rows.forEach(r => {
         poStats[r.supplier_id] = {
@@ -137,12 +129,12 @@ export const getSuppliers = async (req, res) => {
 // ── GET SINGLE ────────────────────────────────────────────────────────────────
 export const getSupplierById = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { id } = req.params;
 
     const result = await pool.query(
-      "SELECT * FROM suppliers WHERE id = $1 AND user_id = $2",
-      [id, userId]
+      "SELECT * FROM suppliers WHERE id = $1 AND business_id = $2",
+      [id, businessId]
     );
     if (!result.rows.length) {
       return res.status(404).json({ error: "Supplier not found" });
@@ -157,7 +149,7 @@ export const getSupplierById = async (req, res) => {
 // ── UPDATE ────────────────────────────────────────────────────────────────────
 export const updateSupplier = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { id } = req.params;
     const {
       name, email, phone, address, city, country,
@@ -165,8 +157,8 @@ export const updateSupplier = async (req, res) => {
     } = req.body;
 
     const existing = await pool.query(
-      "SELECT id FROM suppliers WHERE id = $1 AND user_id = $2",
-      [id, userId]
+      "SELECT id FROM suppliers WHERE id = $1 AND business_id = $2",
+      [id, businessId]
     );
     if (!existing.rows.length) {
       return res.status(404).json({ error: "Supplier not found" });
@@ -177,17 +169,17 @@ export const updateSupplier = async (req, res) => {
        SET name=$1, email=$2, phone=$3, address=$4, city=$5, country=$6,
            gstin=$7, payment_terms=$8, lead_time_days=$9, status=$10, notes=$11,
            updated_at=NOW()
-       WHERE id=$12 AND user_id=$13
+       WHERE id=$12 AND business_id=$13
        RETURNING *`,
       [
         name, email || null, phone || null, address || null, city || null,
         country || null, gstin || null, payment_terms || null,
         lead_time_days || 0, status || "active", notes || null,
-        id, userId,
+        id, businessId,
       ]
     );
 
-    await logActivity(userId, "supplier", id, "updated", userId, {});
+    await logActivity(businessId, "supplier", id, "updated", businessId, {});
     res.json(result.rows[0]);
   } catch (err) {
     console.error("UPDATE SUPPLIER ERROR:", err);
@@ -198,12 +190,12 @@ export const updateSupplier = async (req, res) => {
 // ── DELETE (soft) ─────────────────────────────────────────────────────────────
 export const deleteSupplier = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { id } = req.params;
 
     const existing = await pool.query(
-      "SELECT id FROM suppliers WHERE id = $1 AND user_id = $2",
-      [id, userId]
+      "SELECT id FROM suppliers WHERE id = $1 AND business_id = $2",
+      [id, businessId]
     );
     if (!existing.rows.length) {
       return res.status(404).json({ error: "Supplier not found" });
@@ -212,9 +204,9 @@ export const deleteSupplier = async (req, res) => {
     // Block deletion if active POs exist
     const activePos = await pool.query(
       `SELECT COUNT(*) FROM purchase_orders
-       WHERE supplier_id = $1 AND user_id = $2
+       WHERE supplier_id = $1 AND business_id = $2
          AND status NOT IN ('cancelled', 'closed')`,
-      [id, userId]
+      [id, businessId]
     );
     if (parseInt(activePos.rows[0].count) > 0) {
       return res.status(400).json({
@@ -223,11 +215,11 @@ export const deleteSupplier = async (req, res) => {
     }
 
     await pool.query(
-      "UPDATE suppliers SET status = 'inactive', updated_at = NOW() WHERE id = $1 AND user_id = $2",
-      [id, userId]
+      "UPDATE suppliers SET status = 'inactive', updated_at = NOW() WHERE id = $1 AND business_id = $2",
+      [id, businessId]
     );
 
-    await logActivity(userId, "supplier", id, "deactivated", userId, {});
+    await logActivity(businessId, "supplier", id, "deactivated", businessId, {});
     res.json({ message: "Supplier deactivated" });
   } catch (err) {
     console.error("DELETE SUPPLIER ERROR:", err);

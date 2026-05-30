@@ -18,19 +18,24 @@ export default function ProductModule({onNavigate}) {
   
   
   //  Fetch products
-  const fetchProducts = async () => {
-    const res = await apiFetch(`/api/products/`, 
-      {
-      credentials: "include"
-    });
-    if (!res.ok) {
-    console.error("Auth failed — redirect to login");
-    return;   
-  }
+const fetchProducts = async () => {
+  try {
 
-    const data = await res.json();
-    setProducts(Array.isArray(data) ? data : []);
-  };
+    const data = await apiFetch("/api/products");
+
+    setProducts(
+      Array.isArray(data)
+        ? data
+        : []
+    );
+
+  } catch (err) {
+
+    console.error("Fetch products error:", err);
+
+    setProducts([]);
+  }
+};
 
   useEffect(() => {
     fetchProducts();

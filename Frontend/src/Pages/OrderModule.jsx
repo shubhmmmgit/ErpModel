@@ -35,33 +35,31 @@ export default function OrderModule() {
   });
 
   // ── Fetch ────────────────────────────────────────────────
-  const fetchAll = async () => {
+const fetchAll = async () => {
+  try {
+
     setLoading(true);
-    try {
-      const [ordersRes, productsRes, summaryRes] = await Promise.all([
-        apiFetch("/api/orders", { credentials: "include" }),
-        apiFetch("/api/products", { credentials: "include" }),
-        apiFetch("/api/orders/summary", { credentials: "include" })
-      ]);
 
-      if (ordersRes.status === 401 || productsRes.status === 401) {
-        navigate("/auth");
-        return;
-      }
+    const [ordersData, summaryData] = await Promise.all([
+      apiFetch("/api/orders"),
+      apiFetch("/api/orders/summary")
+    ]);
 
-      const ordersData   = await ordersRes.json();
-      const productsData = await productsRes.json();
-      const summaryData  = await summaryRes.json();
+    setOrders(Array.isArray(ordersData) ? ordersData : []);
 
-      setOrders(ordersData.orders || []);
-      setProducts(Array.isArray(productsData) ? productsData : []);
-      setSummary(summaryData);
-    } catch (err) {
-      console.error("Fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setSummary(summaryData || {});
+
+  } catch (err) {
+
+    console.error("Fetch error:", err);
+
+    setOrders([]);
+
+  } finally {
+
+    setLoading(false);
+  }
+};
 
   useEffect(() => { fetchAll(); }, []);
 

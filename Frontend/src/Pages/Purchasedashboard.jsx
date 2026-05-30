@@ -1,5 +1,6 @@
 // PurchaseDashboard.jsx
 import { useState, useEffect } from "react";
+import {apiFetch} from "../api.js";
 
 const C = {
   yellow: "#fbbf24", green: "#34d399", red: "#f87171",
@@ -14,85 +15,34 @@ export default function PurchaseDashboard() {
 
   useEffect(() => {
 
-  // TEMP MOCK DATA
-  setTimeout(() => {
-    setData({
-      pr: {
-        total: 24,
-        pending: 5,
-        approved: 14,
-        rejected: 2,
-        ordered: 8,
-      },
+  const fetchDashboard = async () => {
 
-      po: {
-        total: 18,
-        total_value: 450000,
-        sent: 4,
-        confirmed: 6,
-        received: 7,
-        cancelled: 1,
-      },
+    try {
 
-      invoice: {
-        total_invoiced: 380000,
-        total_paid: 250000,
-        total_outstanding: 130000,
-        pending: 3,
-        overdue: 1,
-      },
+      setLoading(true);
 
-      returns: {
-        total: 2,
-        total_value: 12000,
-      },
+      const dashboardData = await apiFetch(
+        "/api/purchase/dashboard"
+      );
 
-      top_suppliers: [
-        {
-          id: 1,
-          name: "Tech Supplies Ltd",
-          order_count: 12,
-          total_value: 220000,
-          rating: 4.8,
-        },
-        {
-          id: 2,
-          name: "Office Mart",
-          order_count: 7,
-          total_value: 140000,
-          rating: 4.5,
-        },
-      ],
+      setData(dashboardData || {});
 
-      recent_activity: [
-        {
-          entity_type: "PO",
-          entity_id: "PO-1001",
-          action: "created",
-          performed_by_name: "Admin",
-          created_at: new Date(),
-        },
-        {
-          entity_type: "GRN",
-          entity_id: "GRN-102",
-          action: "received",
-          performed_by_name: "Inventory Manager",
-          created_at: new Date(),
-        },
-      ],
+    } catch (err) {
 
-      monthly_spend: [
-        { month: "Jan", spend: 50000 },
-        { month: "Feb", spend: 70000 },
-        { month: "Mar", spend: 65000 },
-        { month: "Apr", spend: 90000 },
-        { month: "May", spend: 110000 },
-        { month: "Jun", spend: 85000 },
-      ],
-    });
+      console.error(
+        "PURCHASE DASHBOARD ERROR:",
+        err
+      );
 
-    setLoading(false);
-  }, 600);
+      setData({});
+
+    } finally {
+
+      setLoading(false);
+    }
+  };
+
+  fetchDashboard();
 
 }, []);
 
@@ -128,9 +78,9 @@ export default function PurchaseDashboard() {
       {/* ── KPI CARDS ── */}
       <div style={grid4} className="fade-up">
         <KpiCard label="Total PO Value"     value={`₹${fmt(po.total_value|| 0)}`}    accent={C.yellow}  icon="💰" sub={`${po.total} orders total`} />
-        <KpiCard label="Outstanding Payable" value={`₹${fmt(invoice.total_outstanding)}`} accent={C.red} icon="💳" sub={`${invoice.pending} invoices pending`} />
-        <KpiCard label="Pending PRs"        value={pr.pending}                   accent={C.blue}    icon="📋" sub={`${pr.total} total requisitions`} />
-        <KpiCard label="Active Returns"     value={returns.total}                accent={C.purple}  icon="↩️" sub={`₹${fmt(returns.total_value || 0)} value`} />
+        <KpiCard label="Outstanding Payable" value={`₹${fmt(invoice?.total_outstanding || 0)}`} accent={C.red} icon="💳" sub={`${invoice.pending} invoices pending`} />
+        <KpiCard label="Pending PRs"        value={pr?.pending || 0}                   accent={C.blue}    icon="📋" sub={`${pr?.total} total requisitions`} />
+        <KpiCard label="Active Returns"     value={returns.total || 0}                accent={C.purple}  icon="↩️" sub={`₹${fmt(returns.total_value || 0)} value`} />
       </div>
 
       {/* ── PO STATUS + INVOICE ROW ── */}
@@ -168,9 +118,9 @@ export default function PurchaseDashboard() {
           <h3 style={cardTitle}>Invoice Summary</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "16px" }}>
             {[
-              { label: "Total Invoiced",  value: `₹${fmt(invoice.total_invoiced)}`,    color: C.text },
-              { label: "Total Paid",      value: `₹${fmt(invoice.total_paid)}`,         color: C.green },
-              { label: "Outstanding",     value: `₹${fmt(invoice.total_outstanding)}`,  color: C.red },
+              { label: "Total Invoiced",  value: `₹${fmt(invoice?.total_invoiced)}`,    color: C.text },
+              { label: "Total Paid",      value: `₹${fmt(invoice?.total_paid)}`,         color: C.green },
+              { label: "Outstanding",     value: `₹${fmt(invoice?.total_outstanding)}`,  color: C.red },
               { label: "Overdue",         value: invoice.overdue,                       color: C.red },
             ].map(item => (
               <div key={item.label} style={{ background: "#13172b", borderRadius: "10px", padding: "14px" }}>

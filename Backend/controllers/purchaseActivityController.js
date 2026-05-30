@@ -1,16 +1,15 @@
-// controllers/purchaseActivityController.js
-// Uses user_id — matches DB schema (not business_id)
+
 import pool from "../config/db.js";
 
 export const logActivity = async (
-  userId, entityType, entityId, action, performedBy, details = {}
+  businessId, entityType, entityId, action, performedBy, details = {}
 ) => {
   try {
     await pool.query(
       `INSERT INTO purchase_activity_log
-         (user_id, entity_type, entity_id, action, performed_by, details)
+         (business_id, entity_type, entity_id, action, performed_by, details)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, entityType, entityId, action, performedBy, JSON.stringify(details)]
+      [businessId, entityType, entityId, action, performedBy, JSON.stringify(details)]
     );
   } catch (err) {
     // Non-fatal — log but never crash the main request
@@ -20,11 +19,11 @@ export const logActivity = async (
 
 export const getActivityLog = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { entity_type, entity_id, limit = 50 } = req.query;
 
-    const conditions = ["user_id = $1"];
-    const params     = [userId];
+    const conditions = ["business_id = $1"];
+    const params     = [businessId];
 
     if (entity_type) {
       params.push(entity_type);

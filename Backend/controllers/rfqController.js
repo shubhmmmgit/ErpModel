@@ -1,13 +1,12 @@
-// controllers/rfqController.js
-// FIXED: Uses req.user.userId throughout
+
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
 
-const genNumber = async (client, userId, prefix, table, col) => {
+const genNumber = async (client, businessId, prefix, table, col) => {
   const year = new Date().getFullYear();
   const { rows } = await client.query(
-    `SELECT COUNT(*) FROM ${table} WHERE user_id = $1 AND ${col} LIKE $2`,
-    [userId, `${prefix}-${year}-%`]
+    `SELECT COUNT(*) FROM ${table} WHERE business_id = $1 AND ${col} LIKE $2`,
+    [businessId, `${prefix}-${year}-%`]
   );
   return `${prefix}-${year}-${String(parseInt(rows[0].count) + 1).padStart(4, "0")}`;
 };
@@ -15,40 +14,40 @@ const genNumber = async (client, userId, prefix, table, col) => {
 export const createRFQ = async (req, res) => {
   const client = await pool.connect();
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { pr_id, deadline, notes, supplier_ids } = req.body;
 
     if (!supplier_ids?.length) return res.status(400).json({ error: "At least one supplier is required" });
 
     const suppCheck = await client.query(
-      "SELECT id FROM suppliers WHERE id = ANY($1::int[]) AND user_id = $2 AND status = 'active'",
-      [supplier_ids, userId]
+      "SELECT id FROM suppliers WHERE id = ANY($1::int[]) AND business_id = $2 AND status = 'active'",
+      [supplier_ids, businessId]
     );
     if (suppCheck.rows.length !== supplier_ids.length) {
       return res.status(400).json({ error: "One or more suppliers are invalid or inactive" });
     }
 
     await client.query("BEGIN");
-    const rfq_number = await genNumber(client, userId, "RFQ", "rfqs", "rfq_number");
+    const rfq_number = await genNumber(client, businessId, "RFQ", "rfqs", "rfq_number");
 
     const rfqResult = await client.query(
-      `INSERT INTO rfqs (user_id, rfq_number, pr_id, created_by, deadline, notes, status)
+      `INSERT INTO rfqs (business_id, rfq_number, pr_id, created_by, deadline, notes, status)
        VALUES ($1,$2,$3,$4,$5,$6,'sent') RETURNING *`,
-      [userId, rfq_number, pr_id || null, userId, deadline || null, notes || null]
+      [businessId, rfq_number, pr_id || null, businessId, deadline || null, notes || null]
     );
     const rfq = rfqResult.rows[0];
 
     for (const suppId of supplier_ids) {
       await client.query(
-        "INSERT INTO rfq_suppliers (rfq_id, user_id, supplier_id, status) VALUES ($1,$2,$3,'invited')",
-        [rfq.id, userId, suppId]
+        "INSERT INTO rfq_suppliers (rfq_id, business_id, supplier_id, status) VALUES ($1,$2,$3,'invited')",
+        [rfq.id, businessId, suppId]
       );
     }
 
     await client.query("COMMIT");
-    await logActivity(userId, "rfq", rfq.id, "created", userId, { rfq_number });
+    await logActivity(businessId, "rfq", rfq.id, "created", businessId, { rfq_number });
 
-    const full = await getFullRFQ(rfq.id, userId);
+    const full = await getFullRFQ(rfq.id, businessId);
     res.status(201).json(full);
   } catch (err) {
     await client.query("ROLLBACK");
@@ -61,12 +60,12 @@ export const createRFQ = async (req, res) => {
 
 export const getRFQs = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const conditions = ["r.user_id = $1"];
-    const params     = [userId];
+    const conditions = ["r.business_id = $1"];
+    const params     = [businessId];
     if (status) { params.push(status); conditions.push(`r.status = $${params.length}`); }
 
     const result = await pool.query(
@@ -95,7 +94,7 @@ export const getRFQs = async (req, res) => {
 
 export const getRFQById = async (req, res) => {
   try {
-    const full = await getFullRFQ(req.params.id, req.user.userId);
+    const full = await getFullRFQ(req.params.id, req.user.businessId);
     if (!full) return res.status(404).json({ error: "RFQ not found" });
     res.json(full);
   } catch (err) {
@@ -105,15 +104,15 @@ export const getRFQById = async (req, res) => {
 
 export const submitQuotation = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { rfq_id, supplier_id } = req.params;
     const { quoted_amount, delivery_days, validity_date, notes, items } = req.body;
 
     const rfqSupp = await pool.query(
       `SELECT rs.* FROM rfq_suppliers rs
        JOIN rfqs r ON r.id = rs.rfq_id
-       WHERE rs.rfq_id = $1 AND rs.supplier_id = $2 AND r.user_id = $3`,
-      [rfq_id, supplier_id, userId]
+       WHERE rs.rfq_id = $1 AND rs.supplier_id = $2 AND r.business_id = $3`,
+      [rfq_id, supplier_id, businessId]
     );
     if (!rfqSupp.rows.length) return res.status(404).json({ error: "Supplier not found in this RFQ" });
 
@@ -131,12 +130,12 @@ export const submitQuotation = async (req, res) => {
     );
     if (parseInt(pending.rows[0].count) === 0) {
       await pool.query(
-        "UPDATE rfqs SET status = 'received', updated_at = NOW() WHERE id = $1 AND user_id = $2",
-        [rfq_id, userId]
+        "UPDATE rfqs SET status = 'received', updated_at = NOW() WHERE id = $1 AND business_id = $2",
+        [rfq_id, businessId]
       );
     }
 
-    await logActivity(userId, "rfq", rfq_id, "quotation_received", userId, { supplier_id, quoted_amount });
+    await logActivity(businessId, "rfq", rfq_id, "quotation_received", businessId, { supplier_id, quoted_amount });
     res.json({ message: "Quotation submitted" });
   } catch (err) {
     console.error("SUBMIT QUOTATION ERROR:", err);
@@ -146,12 +145,12 @@ export const submitQuotation = async (req, res) => {
 
 export const selectSupplier = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { rfq_id } = req.params;
     const { supplier_id } = req.body;
 
     const rfq = await pool.query(
-      "SELECT * FROM rfqs WHERE id = $1 AND user_id = $2", [rfq_id, userId]
+      "SELECT * FROM rfqs WHERE id = $1 AND business_id = $2", [rfq_id, businessId]
     );
     if (!rfq.rows.length) return res.status(404).json({ error: "RFQ not found" });
 
@@ -170,11 +169,11 @@ export const selectSupplier = async (req, res) => {
       [rfq_id, supplier_id]
     );
     await pool.query(
-      "UPDATE rfqs SET status = 'compared', selected_supplier_id = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3",
-      [supplier_id, rfq_id, userId]
+      "UPDATE rfqs SET status = 'compared', selected_supplier_id = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3",
+      [supplier_id, rfq_id, businessId]
     );
 
-    await logActivity(userId, "rfq", rfq_id, "supplier_selected", userId, { supplier_id });
+    await logActivity(businessId, "rfq", rfq_id, "supplier_selected", businessId, { supplier_id });
     res.json({ message: "Supplier selected" });
   } catch (err) {
     console.error("SELECT SUPPLIER ERROR:", err);
@@ -182,13 +181,13 @@ export const selectSupplier = async (req, res) => {
   }
 };
 
-const getFullRFQ = async (id, userId) => {
+const getFullRFQ = async (id, businessId) => {
   const rfqRes = await pool.query(
     `SELECT r.*, pr.pr_number
      FROM rfqs r
      LEFT JOIN purchase_requisitions pr ON pr.id = r.pr_id
-     WHERE r.id = $1 AND r.user_id = $2`,
-    [id, userId]
+     WHERE r.id = $1 AND r.business_id = $2`,
+    [id, businessId]
   );
   if (!rfqRes.rows.length) return null;
   const rfq = rfqRes.rows[0];

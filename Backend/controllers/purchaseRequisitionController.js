@@ -1,13 +1,12 @@
-// controllers/purchaseRequisitionController.js
-// FIXED: Uses req.user.userId; products stock lookup uses user_id column
+
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
 
-const genNumber = async (client, userId, prefix, table, col) => {
+const genNumber = async (client, businessId, prefix, table, col) => {
   const year = new Date().getFullYear();
   const { rows } = await client.query(
-    `SELECT COUNT(*) FROM ${table} WHERE user_id = $1 AND ${col} LIKE $2`,
-    [userId, `${prefix}-${year}-%`]
+    `SELECT COUNT(*) FROM ${table} WHERE business_id = $1 AND ${col} LIKE $2`,
+    [businessId, `${prefix}-${year}-%`]
   );
   return `${prefix}-${year}-${String(parseInt(rows[0].count) + 1).padStart(4, "0")}`;
 };
@@ -16,7 +15,7 @@ const genNumber = async (client, userId, prefix, table, col) => {
 export const createPR = async (req, res) => {
   const client = await pool.connect();
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { department, purpose, required_date, priority, notes, items } = req.body;
 
     if (!items?.length) return res.status(400).json({ error: "At least one item is required" });
@@ -26,15 +25,15 @@ export const createPR = async (req, res) => {
     }
 
     await client.query("BEGIN");
-    const pr_number = await genNumber(client, userId, "PR", "purchase_requisitions", "pr_number");
+    const pr_number = await genNumber(client, businessId, "PR", "purchase_requisitions", "pr_number");
 
-    // Snapshot current stock (products.user_id matches)
+    // Snapshot current stock 
     const enrichedItems = await Promise.all(items.map(async (item) => {
       let currentStock = 0;
       if (item.product_id) {
         const stockRes = await client.query(
-          "SELECT stock FROM products WHERE id = $1 AND user_id = $2",
-          [item.product_id, userId]
+          "SELECT stock FROM products WHERE id = $1 AND business_id = $2",
+          [item.product_id, businessId]
         );
         currentStock = stockRes.rows[0]?.stock || 0;
       }
@@ -47,11 +46,11 @@ export const createPR = async (req, res) => {
 
     const prResult = await client.query(
       `INSERT INTO purchase_requisitions
-         (user_id, pr_number, requested_by, department, purpose,
+         (business_id, pr_number, requested_by, department, purpose,
           required_date, priority, notes, total_amount, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
        RETURNING *`,
-      [userId, pr_number, userId, department || null, purpose || null,
+      [businessId, pr_number, businessId, department || null, purpose || null,
        required_date || null, priority || "normal", notes || null, totalAmount]
     );
     const pr = prResult.rows[0];
@@ -59,19 +58,19 @@ export const createPR = async (req, res) => {
     for (const item of enrichedItems) {
       await client.query(
         `INSERT INTO purchase_requisition_items
-           (pr_id, user_id, product_id, item_name, description,
+           (pr_id, business_id, product_id, item_name, description,
             quantity, unit, estimated_price, current_stock)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [pr.id, userId, item.product_id || null, item.item_name.trim(),
+        [pr.id, businessId, item.product_id || null, item.item_name.trim(),
          item.description || null, item.quantity, item.unit || "pcs",
          item.estimated_price || 0, item.current_stock]
       );
     }
 
     await client.query("COMMIT");
-    await logActivity(userId, "pr", pr.id, "created", userId, { pr_number });
+    await logActivity(businessId, "pr", pr.id, "created", businessId, { pr_number });
 
-    const full = await getFullPR(pr.id, userId);
+    const full = await getFullPR(pr.id, businessId);
     res.status(201).json(full);
   } catch (err) {
     await client.query("ROLLBACK");
@@ -85,12 +84,12 @@ export const createPR = async (req, res) => {
 // ── LIST ──────────────────────────────────────────────────────────────────────
 export const getPRs = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { status, priority, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const conditions = ["pr.user_id = $1"];
-    const params     = [userId];
+    const conditions = ["pr.business_id = $1"];
+    const params     = [businessId];
     if (status)   { params.push(status);   conditions.push(`pr.status = $${params.length}`); }
     if (priority) { params.push(priority); conditions.push(`pr.priority = $${params.length}`); }
 
@@ -120,7 +119,7 @@ export const getPRs = async (req, res) => {
 // ── GET SINGLE ────────────────────────────────────────────────────────────────
 export const getPRById = async (req, res) => {
   try {
-    const full = await getFullPR(req.params.id, req.user.userId);
+    const full = await getFullPR(req.params.id, req.user.businessId);
     if (!full) return res.status(404).json({ error: "Requisition not found" });
     res.json(full);
   } catch (err) {
@@ -131,12 +130,12 @@ export const getPRById = async (req, res) => {
 // ── APPROVE ───────────────────────────────────────────────────────────────────
 export const approvePR = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { id } = req.params;
 
     const pr = await pool.query(
-      "SELECT * FROM purchase_requisitions WHERE id = $1 AND user_id = $2",
-      [id, userId]
+      "SELECT * FROM purchase_requisitions WHERE id = $1 AND business_id = $2",
+      [id, businessId]
     );
     if (!pr.rows.length) return res.status(404).json({ error: "Requisition not found" });
     if (pr.rows[0].status !== "pending") {
@@ -146,10 +145,10 @@ export const approvePR = async (req, res) => {
     await pool.query(
       `UPDATE purchase_requisitions
        SET status = 'approved', approved_by = $1, updated_at = NOW()
-       WHERE id = $2 AND user_id = $3`,
-      [userId, id, userId]
+       WHERE id = $2 AND business_id = $3`,
+      [businessId, id, businessId]
     );
-    await logActivity(userId, "pr", id, "approved", userId, {});
+    await logActivity(businessId, "pr", id, "approved", businessId, {});
     res.json({ message: "Requisition approved" });
   } catch (err) {
     console.error("APPROVE PR ERROR:", err);
@@ -160,13 +159,13 @@ export const approvePR = async (req, res) => {
 // ── REJECT ────────────────────────────────────────────────────────────────────
 export const rejectPR = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const {businessId} = req.user;
     const { id } = req.params;
     const { rejection_reason } = req.body;
 
     const pr = await pool.query(
-      "SELECT * FROM purchase_requisitions WHERE id = $1 AND user_id = $2",
-      [id, userId]
+      "SELECT * FROM purchase_requisitions WHERE id = $1 AND business_id = $2",
+      [id, businessId]
     );
     if (!pr.rows.length) return res.status(404).json({ error: "Requisition not found" });
     if (!["pending", "approved"].includes(pr.rows[0].status)) {
@@ -176,10 +175,10 @@ export const rejectPR = async (req, res) => {
     await pool.query(
       `UPDATE purchase_requisitions
        SET status = 'rejected', rejection_reason = $1, updated_at = NOW()
-       WHERE id = $2 AND user_id = $3`,
-      [rejection_reason || null, id, userId]
+       WHERE id = $2 AND business_id = $3`,
+      [rejection_reason || null, id, businessId]
     );
-    await logActivity(userId, "pr", id, "rejected", userId, { rejection_reason });
+    await logActivity(businessId, "pr", id, "rejected", businessId, { rejection_reason });
     res.json({ message: "Requisition rejected" });
   } catch (err) {
     console.error("REJECT PR ERROR:", err);
@@ -188,10 +187,10 @@ export const rejectPR = async (req, res) => {
 };
 
 // ── HELPER ────────────────────────────────────────────────────────────────────
-const getFullPR = async (id, userId) => {
+const getFullPR = async (id, businessId) => {
   const prRes = await pool.query(
-    "SELECT * FROM purchase_requisitions WHERE id = $1 AND user_id = $2",
-    [id, userId]
+    "SELECT * FROM purchase_requisitions WHERE id = $1 AND business_id = $2",
+    [id, businessId]
   );
   if (!prRes.rows.length) return null;
   const pr = prRes.rows[0];

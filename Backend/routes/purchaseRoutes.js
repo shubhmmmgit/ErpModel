@@ -31,11 +31,12 @@ import {
 
 import { getPurchaseDashboard } from "../controllers/purchaseDashboardController.js";
 import { getActivityLog } from "../controllers/purchaseActivityController.js";
+import { authMiddleware } from "../middlewares/authmiddleware.js";
 
 const router = express.Router();
 
 // ── Dashboard ────────────────────────────────────────────────
-router.get("/dashboard", getPurchaseDashboard);
+router.get("/dashboard",authMiddleware, getPurchaseDashboard);
 
 // ── Activity Log ──────────────────────────────────────────────
 router.get("/activity", getActivityLog);

@@ -1,16 +1,9 @@
-// controllers/purchaseDashboardController.js
-// ─────────────────────────────────────────────────────────────────────────────
-//  FIXED:
-//  1. Uses req.user.userId (not businessId) — matches JWT token payload
-//  2. All queries use user_id column (matches DB schema)
-//  3. Removed JOIN on users table (no users table in your schema)
-//  4. Activity log query removed JOIN on users (caused errors)
-// ─────────────────────────────────────────────────────────────────────────────
+
 import pool from "../config/db.js";
 
 export const getPurchaseDashboard = async (req, res) => {
   try {
-    const userId = req.user.userId; // ← FIXED: was req.user.businessId
+   const { businessId } = req.user; // ← FIXED: was req.user.businessId
 
     const [
       prStats,
@@ -31,8 +24,8 @@ export const getPurchaseDashboard = async (req, res) => {
            COUNT(*) FILTER (WHERE status = 'rejected')     AS rejected,
            COUNT(*) FILTER (WHERE status = 'ordered')      AS ordered
          FROM purchase_requisitions
-         WHERE user_id = $1`,
-        [userId]
+         WHERE business_id = $1`,
+        [businessId]
       ),
 
       // ── PO summary ──────────────────────────────────────────
@@ -45,8 +38,8 @@ export const getPurchaseDashboard = async (req, res) => {
            COUNT(*) FILTER (WHERE status = 'cancelled')                              AS cancelled,
            COALESCE(SUM(total_amount) FILTER (WHERE status <> 'cancelled'), 0)       AS total_value
          FROM purchase_orders
-         WHERE user_id = $1`,
-        [userId]
+         WHERE business_id = $1`,
+        [businessId]
       ),
 
       // ── Invoice summary ──────────────────────────────────────
@@ -60,8 +53,8 @@ export const getPurchaseDashboard = async (req, res) => {
            COALESCE(SUM(paid_amount), 0)                      AS total_paid,
            COALESCE(SUM(balance_due), 0)                      AS total_outstanding
          FROM purchase_invoices
-         WHERE user_id = $1`,
-        [userId]
+         WHERE business_id = $1`,
+        [businessId]
       ),
 
       // ── Return summary ───────────────────────────────────────
@@ -70,8 +63,8 @@ export const getPurchaseDashboard = async (req, res) => {
            COUNT(*)                                                              AS total,
            COALESCE(SUM(total_amount) FILTER (WHERE status <> 'cancelled'), 0)  AS total_value
          FROM purchase_returns
-         WHERE user_id = $1`,
-        [userId]
+         WHERE business_id = $1`,
+        [businessId]
       ),
 
       // ── Top 5 suppliers by PO value ──────────────────────────
@@ -86,13 +79,13 @@ export const getPurchaseDashboard = async (req, res) => {
          FROM suppliers s
          LEFT JOIN purchase_orders po
                ON po.supplier_id = s.id
-              AND po.user_id     = s.user_id
-         WHERE s.user_id = $1
+              AND po.business_id     = s.business_id
+         WHERE s.business_id = $1
            AND s.status  = 'active'
          GROUP BY s.id, s.name, s.rating
          ORDER BY total_value DESC
          LIMIT 5`,
-        [userId]
+        [businessId]
       ),
 
       // ── Recent activity ──────────────────────────────────────
@@ -100,10 +93,10 @@ export const getPurchaseDashboard = async (req, res) => {
       pool.query(
         `SELECT *
          FROM purchase_activity_log
-         WHERE user_id = $1
+         WHERE business_id = $1
          ORDER BY created_at DESC
          LIMIT 10`,
-        [userId]
+        [businessId]
       ),
 
       // ── Monthly spend (last 6 months) ─────────────────────────
@@ -113,11 +106,11 @@ export const getPurchaseDashboard = async (req, res) => {
            DATE_TRUNC('month', created_at)                       AS month_date,
            COALESCE(SUM(total_amount) FILTER (WHERE status <> 'cancelled'), 0) AS spend
          FROM purchase_orders
-         WHERE user_id    = $1
+         WHERE business_id    = $1
            AND created_at >= NOW() - INTERVAL '6 months'
          GROUP BY DATE_TRUNC('month', created_at)
          ORDER BY month_date ASC`,
-        [userId]
+        [businessId]
       ),
     ]);
 
