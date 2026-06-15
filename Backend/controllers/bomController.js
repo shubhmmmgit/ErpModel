@@ -1,6 +1,6 @@
 
 import pool from "../config/db.js";
-import { recordMovement } from "./inventoryController.js";
+import { recordMovement } from "./InventoryController.js";
 
 // ─────────────────────────────────────────────────────────────
 //  CREATE BOM
