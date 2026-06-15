@@ -3,7 +3,7 @@ import {
   addProduct,
   getProducts,
   deleteProduct,
-  updateProduct
+  updateProduct,
 } from "../controllers/productController.js";
 
 import { authMiddleware } from "../middlewares/authmiddleware.js"; 
@@ -15,5 +15,6 @@ router.get("/", authMiddleware, getProducts);
 router.post("/add", authMiddleware, addProduct);
 router.put("/:id", authMiddleware, updateProduct);
 router.delete("/:id", authMiddleware, deleteProduct);
+
 
 export default router;

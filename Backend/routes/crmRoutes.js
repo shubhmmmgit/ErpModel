@@ -16,11 +16,15 @@ import {
   markFollowUpDone,
   getCRMSummary
 } from "../controllers/crmController.js";
+import { authMiddleware } from "../middlewares/authmiddleware.js";
 
 const router = express.Router();
+router.use(authMiddleware);
+
 
 // ── Dashboard ──────────────────────────────────────────────
 router.get("/summary", getCRMSummary);
+
 
 // ── Customers ──────────────────────────────────────────────
 router.get("/customers",        getCustomers);

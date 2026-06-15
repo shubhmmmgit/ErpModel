@@ -471,13 +471,23 @@ function LeadBoard({ onRefresh }) {
   const [dragging, setDragging] = useState(null);
   const [apiError, setApiError] = useState("");
 
-  const fetchLeads = async () => {
+ const fetchLeads = async () => {
+  try {
     setLoading(true);
-    const res  = await apiFetch("/api/crm/leads?limit=100", { credentials:"include" });
-    
+
+    const data = await apiFetch(
+      "/api/crm/leads?limit=100",
+      { credentials: "include" }
+    );
+
     setLeads(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error(err);
+    setLeads([]);
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   useEffect(() => { fetchLeads(); }, []);
 
@@ -618,14 +628,23 @@ function FollowUps({ onRefresh }) {
   const [loading, setLoading] = useState(true);
   const [showDone, setShowDone] = useState(false);
 
-  const fetchFu = async () => {
+const fetchFu = async () => {
+  try {
     setLoading(true);
-    const res  = await apiFetch("/api/crm/followups", { credentials:"include" });
-    
-    setAll(Array.isArray(data) ? data : []);
-    setLoading(false);
-  };
 
+    const data = await apiFetch(
+      "/api/crm/followups",
+      { credentials: "include" }
+    );
+
+    setAll(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error(err);
+    setAll([]);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => { fetchFu(); }, []);
 
   const markDone = async (id) => {

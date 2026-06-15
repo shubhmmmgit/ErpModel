@@ -460,7 +460,9 @@ export const markFollowUpDone = async (req, res) => {
 //  GET /api/crm/summary
 // ─────────────────────────────────────────────────────────────────────────────
 export const getCRMSummary = async (req, res) => {
+  
   try {
+    console.log("REQ USER =", req.user);
     const { businessId } = req.user;
 
     // ── Customer stats ──────────────────────────────────────

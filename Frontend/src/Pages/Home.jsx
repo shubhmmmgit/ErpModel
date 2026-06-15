@@ -196,51 +196,57 @@ export default function Home() {
 
       {/* ── MODULES ── */}
       <div style={moduleSection}>
-        <h2 style={modulesHeading}>Modules</h2>
+  <h2 style={modulesHeading}>Modules</h2>
 
+  <div style={moduleGrid}>
     
-        
-        <div style={moduleGrid}>
-          <Link to="/products" className="module-card" style={cardStyle}>
-            <div style={cardIcon}>📦</div>
-            <h3 style={cardTitle}>Products</h3>
-            <p style={cardDesc}>Manage your product inventory</p>
-          </Link>
-           <div  style={moduleGrid}>
-              <Link to="/purchase" className="module-card" style={cardStyle}>
-  <div style={cardIcon}>🛒</div>
-  <h3 style={cardTitle}>Purchase</h3>
-  <p style={cardDesc}>
-    Procurement, suppliers & inventory purchasing
-  </p>
-</Link>
-        </div>
-          {/* Placeholder cards — style them as coming soon */}
-         <div style = {moduleGrid}>
-          <Link to="/orders" className="module-card" style={cardStyle}>
-          <div style={cardIcon}>🧾</div>
-         <h3 style={cardTitle}>Orders</h3>
-         <p style={cardDesc}>Track and manage customer orders</p>
-         </Link>
-         </div>
+    <Link to="/products" className="module-card" style={cardStyle}>
+      <div style={cardIcon}>📦</div>
+      <h3 style={cardTitle}>Products</h3>
+      <p style={cardDesc}>Manage your product inventory</p>
+    </Link>
 
-          <div className="module-card" style={{ ...cardStyle, opacity: 0.5, cursor: "not-allowed", pointerEvents: "none" }}>
+    <Link to="/purchase" className="module-card" style={cardStyle}>
+      <div style={cardIcon}>🛒</div>
+      <h3 style={cardTitle}>Purchase</h3>
+      <p style={cardDesc}>
+        Procurement, suppliers & inventory purchasing
+      </p>
+    </Link>
+
+    <Link to="/orders" className="module-card" style={cardStyle}>
+      <div style={cardIcon}>🧾</div>
+      <h3 style={cardTitle}>Orders</h3>
+      <p style={cardDesc}>
+        Track and manage customer orders
+      </p>
+    </Link>
+
+    <Link to="/crm" className="module-card" style={cardStyle}>
+      <div style={cardIcon}>👥</div>
+      <h3 style={cardTitle}>CRM</h3>
+      <p style={cardDesc}>
+        Customers, leads & follow-ups
+      </p>
+    </Link>
+    <Link>
+      <div className="module-card" style={cardStyle}>
             <div style={cardIcon}>📊</div>
             <h3 style={cardTitle}>Reports</h3>
             <p style={cardDesc}>Coming soon</p>
           </div>
           <div>
-              <Link to="/crm" className="module-card" style={cardStyle}>
-            <div style={cardIcon}>👥</div>
-            <h3 style={cardTitle}>CRM</h3>
-            <p style={cardDesc}>Customers, leads & follow-ups</p>
-          </Link>
-
+            
           </div>
-        </div>
+    </Link>
+
+    
+
+  </div>
+</div>
       </div>
 
-    </div>
+   
   );
 }
 
@@ -375,8 +381,9 @@ const modulesHeading = {
 
 const moduleGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "20px"
+  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+  gap: "20px",
+  alignItems: "stretch"
 };
 
 const cardStyle = {
@@ -388,7 +395,12 @@ const cardStyle = {
   boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
   transition: "transform 0.2s, box-shadow 0.2s",
   cursor: "pointer",
-  display: "block"
+
+  minHeight: "140px",
+
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center"
 };
 
 const cardIcon = {

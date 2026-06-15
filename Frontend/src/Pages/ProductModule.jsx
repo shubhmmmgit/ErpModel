@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import CategoriesModule from "./CategoriesModule";
+import ImportCenter from "./ImportCenter";
+import ExportCenter from "./ExportCenter";
+import InventoryModule from "./InventoryModule.jsx";
+import BOMModule from "./BOMModule";
 import {apiFetch} from "../api.js";
 
 export default function ProductModule({onNavigate}) {
@@ -14,7 +19,7 @@ export default function ProductModule({onNavigate}) {
     price: "",
     stock: "",
   });
-
+  const [activeTab, setActiveTab] = useState("products");
   
   
   //  Fetch products
@@ -151,20 +156,77 @@ const handleEdit = (product) => {
 };
   return (
     <div>
-     <Link to="/" style={backButtonStyle}>
+   <Link to="/" style={backButtonStyle}>
   ⬅ Back to Home
 </Link>
-      <h2>Products</h2>
+
+<h2>Products Management</h2>
+
+<div style={tabsContainer}>
+  
+  <button
+    style={activeTab === "products" ? activeTabStyle : tabStyle}
+    onClick={() => setActiveTab("products")}
+  >
+    Products
+  </button>
+
+  <button
+    style={activeTab === "categories" ? activeTabStyle : tabStyle}
+    onClick={() => setActiveTab("categories")}
+  >
+    Categories
+  </button>
+
+  <button
+    style={activeTab === "inventory" ? activeTabStyle : tabStyle}
+    onClick={() => setActiveTab("inventory")}
+  >
+    Inventory
+  </button>
+
+  <button
+    style={activeTab === "import" ? activeTabStyle : tabStyle}
+    onClick={() => setActiveTab("import")}
+  >
+    Import
+  </button>
+
+  <button
+    style={activeTab === "export" ? activeTabStyle : tabStyle}
+    onClick={() => setActiveTab("export")}
+  >
+    Export
+  </button>
+
+  <button
+    style={activeTab === "bom" ? activeTabStyle : tabStyle}
+    onClick={() => setActiveTab("bom")}
+  >
+    BOM
+  </button>
+</div>
+{activeTab === "categories" && <CategoriesModule />}
+
+{activeTab === "inventory" && <InventoryModule />}
+
+{activeTab === "import" && <ImportCenter />}
+
+{activeTab === "export" && <ExportCenter />}
+
+{activeTab === "bom" && <BOMModule />}
      
-      
+      {activeTab === "products" && (
+        <>
       <button
         onClick={() => setShowForm(!showForm)}
         style={addButtonStyle}
-      >
+      > 
         {showForm ? "Close" : "+ Add Product"}
       </button>
 
-      
+        </>
+)}
       {showForm && (
         <form onSubmit={handleSubmit} style={formStyle}>
           <h3>Add Product</h3>
@@ -357,6 +419,26 @@ const deleteBtn = {
   padding: "6px 10px",
   borderRadius: "6px",
   cursor: "pointer"
+};
+const tabsContainer = {
+  display: "flex",
+  gap: "10px",
+  marginBottom: "20px",
+  flexWrap: "wrap"
+};
+
+const tabStyle = {
+  padding: "8px 16px",
+  border: "1px solid #ddd",
+  borderRadius: "8px",
+  cursor: "pointer",
+  background: "#fff"
+};
+
+const activeTabStyle = {
+  ...tabStyle,
+  background: "#d22d4b",
+  color: "#fff"
 };
 
 const undoStyle = {

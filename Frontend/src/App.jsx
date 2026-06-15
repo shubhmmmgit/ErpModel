@@ -8,28 +8,33 @@ import CRMModule from "./Pages/CrmModule";
 import PurchaseModule from "./Pages/Purchasemodule";
 import Auth from "./Components/Auth";
 import { Routes, Route } from "react-router-dom";
+import CategoriesModule from "./Pages/CategoriesModule";
+import ImportCenter from "./Pages/ImportCenter";
+import ExportCenter from "./Pages/ExportCenter";  
+import BOMModule from "./Pages/BOMModule";
+
 
 export default function App() {
   return (
-    <div style={{ display: "flex" }}>
+    <div style={{ display: "flex", minHeight: "100vh"}}>
       
       {/* Optional Sidebar */}
       {/* <Sidebar /> */}
 
-      <div style={{ flex: 1, background: "#f9fafb" }}>
+      <div style={{ flex: 1, background: "#f9fafb", display: "flex",
+    flexDirection: "column",
+    minHeight: "100vh" }}>
         <Header />
 
-        <div style={{ padding: "20px" }}>
+        <div style={{ padding: "20px", flex: 1  }}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/products" element={<ProductModule />} />
             <Route path="/orders" element={<OrderModule />} />
             <Route path="/crm" element={<CRMModule />} />
-
-            {/* ── PURCHASE MODULE ── */}
             <Route path="/purchase" element={<PurchaseModule />} />
-
             <Route path="/auth" element={<Auth />} />
+        
           </Routes>
         </div>
 
