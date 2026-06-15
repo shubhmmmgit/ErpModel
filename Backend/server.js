@@ -22,7 +22,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://erpmodel.netlify.app"
+    "https://erpmodell.netlify.app"
   ],
   credentials: true,
 }));
