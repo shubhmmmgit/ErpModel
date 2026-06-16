@@ -5,7 +5,7 @@ import express from "express";
 import {
   createSupplier, getSuppliers, getSupplierById,
   updateSupplier, deleteSupplier
-} from "../controllers/supplierController.js";
+} from "../controllers/suppliercontroller.js";
 
 import {
   createPR, getPRs, getPRById, approvePR, rejectPR
