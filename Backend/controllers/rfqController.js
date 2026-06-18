@@ -69,16 +69,24 @@ export const getRFQs = async (req, res) => {
     if (status) { params.push(status); conditions.push(`r.status = $${params.length}`); }
 
     const result = await pool.query(
-      `SELECT r.*, pr.pr_number,
-              COUNT(rs.id)                                        AS supplier_count,
-              COUNT(rs.id) FILTER (WHERE rs.status = 'quoted')   AS quoted_count
-       FROM rfqs r
-       LEFT JOIN purchase_requisitions pr ON pr.id = r.pr_id
-       LEFT JOIN rfq_suppliers rs ON rs.rfq_id = r.id
-       WHERE ${conditions.join(" AND ")}
-       GROUP BY r.id, pr.pr_number
-       ORDER BY r.created_at DESC
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      `SELECT
+    r.*,
+    pr.pr_number,
+    STRING_AGG(s.name, ', ') AS supplier_names,
+    COUNT(rs.id) AS supplier_count,
+    COUNT(rs.id) FILTER (WHERE rs.status = 'quoted') AS quoted_count
+FROM rfqs r
+LEFT JOIN purchase_requisitions pr
+       ON pr.id = r.pr_id
+LEFT JOIN rfq_suppliers rs
+       ON rs.rfq_id = r.id
+LEFT JOIN suppliers s
+       ON s.id = rs.supplier_id
+WHERE ${conditions.join(" AND ")}
+GROUP BY r.id, pr.pr_number
+ORDER BY r.created_at DESC
+LIMIT $${params.length + 1}
+OFFSET $${params.length + 2}`,
       [...params, parseInt(limit), offset]
     );
 

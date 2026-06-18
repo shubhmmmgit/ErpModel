@@ -1,18 +1,29 @@
 
 import pool from "../config/db.js";
-
 export const logActivity = async (
-  businessId, entityType, entityId, action, performedBy, details = {}
+  businessId,
+  entityType,
+  entityId,
+  action,
+  performedBy,
+  details = {}
 ) => {
   try {
+    const description =
+      `${action} ${entityType} #${entityId}`;
+
     await pool.query(
       `INSERT INTO purchase_activity_log
-         (business_id, entity_type, entity_id, action, performed_by, details)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [businessId, entityType, entityId, action, performedBy, JSON.stringify(details)]
+       (business_id, action_type, description, created_by)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        businessId,
+        action,
+        description,
+        performedBy
+      ]
     );
   } catch (err) {
-    // Non-fatal — log but never crash the main request
     console.error("Activity log error:", err.message);
   }
 };

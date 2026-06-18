@@ -24,12 +24,38 @@ export const createInvoice = async (req, res) => {
       discount_amount, total_amount, notes,
     } = req.body;
 
-    if (!supplier_id)    return res.status(400).json({ error: "Supplier is required" });
+    let finalSupplierId = supplier_id;
+
+if (!finalSupplierId && po_id) {
+  const poRes = await client.query(
+    `
+    SELECT supplier_id
+    FROM purchase_orders
+    WHERE id = $1
+      AND business_id = $2
+    `,
+    [po_id, businessId]
+  );
+
+  if (!poRes.rows.length) {
+    return res.status(400).json({
+      error: "Purchase Order not found"
+    });
+  }
+
+  finalSupplierId = poRes.rows[0].supplier_id;
+}
+
+if (!finalSupplierId) {
+  return res.status(400).json({
+    error: "Supplier is required"
+  });
+}
     if (!invoice_number?.trim()) return res.status(400).json({ error: "Invoice number is required" });
     if (!total_amount || parseFloat(total_amount) <= 0) return res.status(400).json({ error: "Total amount must be > 0" });
 
     const suppCheck = await client.query(
-      "SELECT id FROM suppliers WHERE id = $1 AND business_id = $2", [supplier_id, businessId]
+      "SELECT id FROM suppliers WHERE id = $1 AND business_id = $2", [finalSupplierId, businessId]
     );
     if (!suppCheck.rows.length) return res.status(400).json({ error: "Supplier not found" });
 
@@ -41,24 +67,51 @@ export const createInvoice = async (req, res) => {
     }
 
     await client.query("BEGIN");
-    const internal_ref = await genNumber(client, businessId, "INV", "purchase_invoices", "internal_ref");
 
-    const result = await client.query(
-      `INSERT INTO purchase_invoices
-         (business_id, invoice_number, internal_ref, po_id, grn_id, supplier_id,
-          created_by, invoice_date, due_date, subtotal, tax_amount, discount_amount,
-          total_amount, balance_due, notes, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14,'pending')
-       RETURNING *`,
-      [businessId, invoice_number.trim(), internal_ref, po_id || null, grn_id || null,
-       supplier_id, businessId, invoice_date || new Date().toISOString().split("T")[0],
-       due_date || null, subtotal || 0, tax_amount || 0, discount_amount || 0,
-       total_amount, notes || null]
-    );
 
-    await client.query("COMMIT");
-    await logActivity(businessId, "invoice", result.rows[0].id, "created", businessId, { internal_ref });
-    res.status(201).json(result.rows[0]);
+ const result = await client.query(
+  `
+ INSERT INTO purchase_invoices
+(
+  business_id,
+  po_id,
+  supplier_id,
+  invoice_number,
+  total_amount,
+  paid_amount,
+  balance_due,
+  payment_status,
+  status
+)
+VALUES
+(
+  $1,$2,$3,$4,$5,0,$5,'pending','pending'
+)
+RETURNING *
+  `,
+  [
+  businessId,
+  po_id,
+  finalSupplierId,
+  invoice_number.trim(),
+  total_amount
+]
+);
+
+await client.query("COMMIT");
+
+await logActivity(
+  businessId,
+  "invoice",
+  result.rows[0].id,
+  "created",
+  businessId,
+  {
+    invoice_number
+  }
+);
+
+return res.status(201).json(result.rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("CREATE INVOICE ERROR:", err);

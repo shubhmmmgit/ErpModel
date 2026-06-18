@@ -64,7 +64,7 @@ router.patch ("/rfqs/:rfq_id/select-supplier",            selectSupplier);
 
 // ── Purchase Orders ───────────────────────────────────────────
 router.get   ("/orders",          getPOs);
-router.post  ("/orders",          createPO);
+router.post  ("/orders",     authMiddleware,     createPO);
 router.get   ("/orders/:id",      getPOById);
 router.patch ("/orders/:id/status", updatePOStatus);
 

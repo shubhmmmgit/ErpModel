@@ -20,16 +20,50 @@ export const createPO = async (req, res) => {
       pr_id, rfq_id, supplier_id, delivery_date,
       payment_terms, shipping_address, notes, items, discount_amount,
     } = req.body;
+let finalSupplierId = supplier_id;
 
-    if (!supplier_id) return res.status(400).json({ error: "Supplier is required" });
-    if (!items?.length) return res.status(400).json({ error: "At least one item is required" });
+if (!finalSupplierId && rfq_id) {
+  const rfqSupp = await client.query(
+    `
+    SELECT supplier_id
+    FROM rfq_suppliers
+    WHERE rfq_id = $1
+    LIMIT 1
+    `,
+    [rfq_id]
+  );
 
-    const suppCheck = await client.query(
-      "SELECT id FROM suppliers WHERE id = $1 AND business_id = $2 AND status = 'active'",
-      [supplier_id, businessId]
-    );
-    if (!suppCheck.rows.length) return res.status(400).json({ error: "Supplier not found or inactive" });
+  if (!rfqSupp.rows.length) {
+    return res.status(400).json({
+      error: "No supplier linked to RFQ"
+    });
+  }
 
+  finalSupplierId = rfqSupp.rows[0].supplier_id;
+}
+
+if (!finalSupplierId) {
+  return res.status(400).json({
+    error: "Supplier is required"
+  });
+}
+
+const suppCheck = await client.query(
+  `
+  SELECT id
+  FROM suppliers
+  WHERE id = $1
+    AND business_id = $2
+    AND status = 'active'
+  `,
+  [finalSupplierId, businessId]
+);
+
+if (!suppCheck.rows.length) {
+  return res.status(400).json({
+    error: "Supplier not found or inactive"
+  });
+}
     for (const item of items) {
       if (!item.item_name?.trim()) return res.status(400).json({ error: "Each item needs a name" });
       if (!item.quantity || parseFloat(item.quantity) <= 0) return res.status(400).json({ error: "Quantity must be > 0" });
@@ -60,7 +94,7 @@ export const createPO = async (req, res) => {
           subtotal, tax_amount, discount_amount, total_amount, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'sent')
        RETURNING *`,
-      [businessId, po_number, pr_id || null, rfq_id || null, supplier_id, businessId,
+      [businessId, po_number, pr_id || null, rfq_id || null,   finalSupplierId,businessId,
        delivery_date || null, payment_terms || null, shipping_address || null, notes || null,
        subtotal, taxAmount, discountAmt, totalAmount]
     );
@@ -87,11 +121,21 @@ export const createPO = async (req, res) => {
 
     await client.query(
       "UPDATE suppliers SET total_orders = total_orders + 1, updated_at = NOW() WHERE id = $1 AND business_id = $2",
-      [supplier_id, businessId]
+      [  finalSupplierId, businessId]
     );
 
     await client.query("COMMIT");
-    await logActivity(businessId, "po", po.id, "created", businessId, { po_number, supplier_id });
+    await logActivity(
+  businessId,
+  "po",
+  po.id,
+  "created",
+  businessId,
+  {
+    po_number,
+    supplier_id: finalSupplierId
+  }
+);
 
     const full = await getFullPO(po.id, businessId);
     res.status(201).json(full);

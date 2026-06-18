@@ -207,9 +207,11 @@ export default function PurchaseDashboard() {
                 }} />
                 <div>
                   <p style={{ fontSize: "12.5px", color: C.text }}>
-                    <strong style={{ textTransform: "capitalize" }}>{act.entity_type}</strong>{" "}
-                    {act.entity_id} — {act.action.replace(/_/g, " ")}
-                  </p>
+  <strong style={{ textTransform: "capitalize" }}>
+    {act.entity_type || "Activity"}
+  </strong>{" "}
+  {act.entity_id || "-"} — {(act.action || "created").replace(/_/g, " ")}
+</p>
                   <p style={{ fontSize: "11px", color: C.muted }}>
                     {act.performed_by_name || "System"} · {new Date(act.created_at).toLocaleString("en-IN")}
                   </p>

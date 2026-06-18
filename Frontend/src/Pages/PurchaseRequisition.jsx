@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiFetch } from "../api";
 import {
   C,
   PR_STATUS,
@@ -13,52 +14,68 @@ import {
   selectStyle,
 } from "./Purchaseshared.jsx";
 
-const MOCK = [
-  {
-    id: "PR-1001",
-    department: "IT",
-    requester: "Shubham",
-    items: 4,
-    amount: 45000,
-    status: "pending",
-    date: "2026-05-28",
-  },
-  {
-    id: "PR-1002",
-    department: "Operations",
-    requester: "Rahul",
-    items: 2,
-    amount: 12000,
-    status: "approved",
-    date: "2026-05-25",
-  },
-];
 
 export default function PurchaseRequisition() {
-  const [rows, setRows] = useState(MOCK);
+  const [rows, setRows] = useState([]);
   const [form, setForm] = useState({
     department: "",
     requester: "",
     amount: "",
   });
 
-    const addReq = (e) => {
-    e.preventDefault();
+const fetchPRs = async () => {
+  try {
+    const data = await apiFetch("/api/purchase/requisitions");
 
-    const item = {
-      id: `PR-${Date.now()}`,
+    console.log("PRS:", data);
+
+    setRows(data.requisitions || []);
+  } catch (err) {
+    console.error(err);
+  }
+};
+const addReq = async (e) => {
+  e.preventDefault();
+
+  try {
+    const payload = {
       department: form.department,
-      requester: form.requester,
-      items: 1,
-      amount: Number(form.amount),
-      status: "pending",
-      date: new Date().toISOString(),
+      purpose: "Manual Purchase Request",
+      required_date: new Date().toISOString(),
+      priority: "medium",
+      notes: "",
+      items: [
+        {
+          item_name: "General Item",
+          quantity: 1,
+          estimated_price: Number(form.amount)
+        }
+      ]
     };
 
-    setRows([item, ...rows]);
-    setForm({ department: "", requester: "", amount: "" });
-  };
+    console.log("PR PAYLOAD:", payload);
 
+    await apiFetch("/api/purchase/requisitions", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    setForm({
+      department: "",
+      requester: "",
+      amount: ""
+    });
+
+    fetchPRs();
+
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+  }
+};
+useEffect(() => {
+  fetchPRs();
+}, []);
   return (
     <div>
       <div style={cardStyle}>
@@ -69,13 +86,6 @@ export default function PurchaseRequisition() {
           style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "14px" }}
         >
           <input
-            placeholder="Department"
-            value={form.department}
-            onChange={(e) => setForm({ ...form, department: e.target.value })}
-            style={inputStyle}
-            required
-          />
-   <input
             placeholder="Department"
             value={form.department}
             onChange={(e) => setForm({ ...form, department: e.target.value })}
@@ -111,9 +121,14 @@ export default function PurchaseRequisition() {
           <Tr key={r.id}>
             <Td>{r.id}</Td>
             <Td>{r.department}</Td>
-            <Td>{r.requester}</Td>
-            <Td>{r.items}</Td>
-             <Td>₹{r.amount.toLocaleString()}</Td>
+            <Td>{r.requested_by ?? "-"}</Td>
+<Td>{r.item_count ?? 0}</Td>
+<Td>₹{(r.total_amount ?? 0).toLocaleString()}</Td>
+<Td>
+  {r.created_at
+    ? new Date(r.created_at).toLocaleDateString()
+    : "-"}
+</Td>
             <Td>
               <StatusBadge status={r.status} map={PR_STATUS} />
             </Td>

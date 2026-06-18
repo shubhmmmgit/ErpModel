@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   cardStyle,
   sectionTitle,
@@ -10,6 +10,7 @@ import {
   StatusBadge,
   C,
 } from "./Purchaseshared.jsx";
+import { apiFetch } from "../api";
 
 const RFQ_STATUS = {
   open: { label: "Open", bg: "rgba(251,191,36,0.12)", color: C.yellow },
@@ -20,21 +21,47 @@ export default function RFQModule() {
   const [rfqs, setRfqs] = useState([]);
   const [title, setTitle] = useState("");
 
-  const createRFQ = (e) => {
-    e.preventDefault();
 
-    setRfqs([
-      {
-        id: `RFQ-${Date.now()}`,
+
+const createRFQ = async (e) => {
+  e.preventDefault();
+
+  try {
+    const res = await apiFetch("/api/purchase/rfqs", {
+      method: "POST",
+      body: JSON.stringify({
         title,
-        suppliers: 3,
-        status: "open",
-      },
-      ...rfqs,
-    ]);
+        supplier_ids: [2,3], // supplier id from your suppliers table
+        deadline: "2026-12-31",
+        notes: ""
+      })
+    });
+
+    console.log("RFQ CREATED:", res);
 
     setTitle("");
-  };
+
+    await fetchRFQs();
+
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const fetchRFQs = async () => {
+  try {
+    const data = await apiFetch("/api/purchase/rfqs");
+
+    console.log("RFQS:", data);
+
+    setRfqs(data.rfqs || data);
+  } catch (err) {
+    console.error(err);
+  }
+};
+useEffect(() => {
+  fetchRFQs();
+}, []);
 
   return (
     <div>
@@ -54,18 +81,18 @@ export default function RFQModule() {
         </form>
       </div>
 
-      <Table headers={["RFQ ID", "Title", "Suppliers", "Status"]}>
-        {rfqs.map((r) => (
-          <Tr key={r.id}>
-            <Td>{r.id}</Td>
-            <Td>{r.title}</Td>
-            <Td>{r.suppliers}</Td>
-            <Td>
-              <StatusBadge status={r.status} map={RFQ_STATUS} />
-            </Td>
-          </Tr>
-        ))}
-      </Table>
+<Table headers={["RFQ ID", "RFQ Number", "Supplier", "Status"]}>
+  {rfqs.map((r) => (
+    <Tr key={r.id}>
+      <Td>{r.id}</Td>
+      <Td>{r.rfq_number}</Td>
+      <Td>{r.supplier_names || "-"}</Td>
+      <Td>
+        <StatusBadge status={r.status} map={RFQ_STATUS} />
+      </Td>
+    </Tr>
+  ))}
+</Table>
     </div>
   );
 }
