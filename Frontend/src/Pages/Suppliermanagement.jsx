@@ -20,32 +20,16 @@ export default function SupplierManagement() {
   const [submitting, setSubmitting] = useState(false);
   const { toast, ToastContainer } = useToast();
 
- const fetchSuppliers = async () => {
-  setLoading(true);
-  try {
+  const fetchSuppliers = async () => {
+    setLoading(true);
     const params = new URLSearchParams();
     if (statusFilter) params.set("status", statusFilter);
-    if (search) params.set("search", search);
-    
-    const res = await fetch(`/api/purchase/suppliers?${params}`, { 
-      credentials: "include" 
-    });
-
-    // Guard against HTML error pages
-    const contentType = res.headers.get("content-type");
-    if (!contentType?.includes("application/json")) {
-      throw new Error("Server returned non-JSON response");
-    }
-
+    if (search)       params.set("search", search);
+    const res = await fetch(`/api/purchase/suppliers?${params}`, { credentials: "include" });
     const data = await res.json();
     setSuppliers(data.suppliers || []);
-  } catch (err) {
-    console.error("fetchSuppliers error:", err);
-    setSuppliers([]);
-  } finally {
     setLoading(false);
-  }
-};
+  };
 
   useEffect(() => { fetchSuppliers(); }, [statusFilter, search]);
 
