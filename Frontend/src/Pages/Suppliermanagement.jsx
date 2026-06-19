@@ -5,6 +5,7 @@ import {
   inputStyle, selectStyle, cardStyle, sectionTitle, fmtCurrency, fmtDate,
   useToast, SearchBar, FilterSelect, monoStyle
 } from "./Purchaseshared.jsx";
+import { apiFetch } from "../api.js";
 
 const EMPTY = { name:"", email:"", phone:"", address:"", city:"", country:"",
                 gstin:"", payment_terms:"", lead_time_days:0, notes:"", status:"active" };
@@ -19,7 +20,7 @@ export default function SupplierManagement() {
   const [statusFilter, setStatusFilter] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { toast, ToastContainer } = useToast();
-import { apiFetch } from "../api.js";
+
 
  const fetchSuppliers = async () => {
   setLoading(true);
