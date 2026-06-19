@@ -56,4 +56,10 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 8080;
+const RENDER_URL = "https://erpmodel.onrender.com";
+setInterval(() => {
+  fetch(`${RENDER_URL}/`)
+    .then(() => console.log("Self-ping OK"))
+    .catch((e) => console.log("Self-ping failed:", e.message));
+}, 14 * 60 * 1000);
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
