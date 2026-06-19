@@ -19,6 +19,7 @@ export default function SupplierManagement() {
   const [statusFilter, setStatusFilter] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { toast, ToastContainer } = useToast();
+import { apiFetch } from "../api.js";
 
  const fetchSuppliers = async () => {
   setLoading(true);
@@ -26,18 +27,7 @@ export default function SupplierManagement() {
     const params = new URLSearchParams();
     if (statusFilter) params.set("status", statusFilter);
     if (search) params.set("search", search);
-    
-    const res = await fetch(`/api/purchase/suppliers?${params}`, { 
-      credentials: "include" 
-    });
-
-    // Guard against HTML error pages
-    const contentType = res.headers.get("content-type");
-    if (!contentType?.includes("application/json")) {
-      throw new Error("Server returned non-JSON response");
-    }
-
-    const data = await res.json();
+    const data = await apiFetch(`/api/purchase/suppliers?${params}`);
     setSuppliers(data.suppliers || []);
   } catch (err) {
     console.error("fetchSuppliers error:", err);
@@ -45,40 +35,45 @@ export default function SupplierManagement() {
   } finally {
     setLoading(false);
   }
-};
+}
 
   useEffect(() => { fetchSuppliers(); }, [statusFilter, search]);
 
   const openCreate = () => { setEditing(null); setForm(EMPTY); setShowForm(true); };
   const openEdit   = (s)  => { setEditing(s.id); setForm({ ...s }); setShowForm(true); };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setSubmitting(true);
+  try {
     const url    = editing ? `/api/purchase/suppliers/${editing}` : "/api/purchase/suppliers";
     const method = editing ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method, credentials: "include",
+    const data = await apiFetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form)
     });
-    const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) { toast(data.error || "Failed to save", "error"); return; }
     toast(editing ? "Supplier updated" : "Supplier created");
     setShowForm(false);
     fetchSuppliers();
-  };
+  } catch (err) {
+    toast(err.message || "Failed to save", "error");
+  } finally {
+    setSubmitting(false);
+  }
+};
+
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Deactivate this supplier?")) return;
-    const res = await fetch(`/api/purchase/suppliers/${id}`, { method: "DELETE", credentials: "include" });
-    const data = await res.json();
-    if (!res.ok) { toast(data.error || "Failed", "error"); return; }
+  if (!window.confirm("Deactivate this supplier?")) return;
+  try {
+    await apiFetch(`/api/purchase/suppliers/${id}`, { method: "DELETE" });
     toast("Supplier deactivated");
     fetchSuppliers();
-  };
-
+  } catch (err) {
+    toast(err.message || "Failed", "error");
+  }
+};
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
