@@ -1,10 +1,7 @@
 {
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
-    "tailwindcss": "^4.2.2",
-    "optionalDependencies": {
-  "lightningcss-linux-x64-gnu": "*"
-}
+    "tailwindcss": "^4.2.2"
   }
   
 }
