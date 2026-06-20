@@ -27,7 +27,7 @@ export default function App() {
 
   // ── On mount: verify session via cookie ────────────────────
   useEffect(() => {
-    apiFetch("/api/auth/me")
+    apiFetch("/api/auth/")
       .then(data => {
         setUser(data);
         localStorage.setItem("erpUser", JSON.stringify(data));
