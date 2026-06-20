@@ -20,9 +20,7 @@ export const apiFetch = async (path, options = {}) => {
 
     if (!contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-
       console.error("NON JSON RESPONSE:", text);
-
       throw new Error("Server returned invalid response");
     }
 
@@ -30,10 +28,10 @@ export const apiFetch = async (path, options = {}) => {
 
     // Handle auth failures
     if (response.status === 401) {
-
       localStorage.removeItem("erpUser");
 
-      if (window.location.pathname !== "/auth") {
+      // Don't redirect for /me — App.jsx handles that silently
+      if (!path.includes("/auth/me") && window.location.pathname !== "/auth") {
         window.location.href = "/auth";
       }
 
@@ -48,9 +46,7 @@ export const apiFetch = async (path, options = {}) => {
     return data;
 
   } catch (err) {
-
     console.error("API ERROR:", err);
-
     throw err;
   }
 };
