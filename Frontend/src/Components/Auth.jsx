@@ -29,10 +29,12 @@ const handleSubmit = async (e) => {
     });
 
     // Save authenticated user
-     if (data?.user) {
-      localStorage.setItem("erpUser", JSON.stringify(data.user));
-      if (onLogin) onLogin(data.user);  // ← add this
-    }
+  if (data?.user && data?.token) {
+  localStorage.setItem("erpToken", data.token);
+  localStorage.setItem("erpUser", JSON.stringify(data.user));
+
+  onLogin(data.user);
+}
     navigate("/");
 
   } catch (err) {

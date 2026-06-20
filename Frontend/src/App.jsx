@@ -25,11 +25,18 @@ export default function App() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("erpToken");
-    if (!token) {
-      setChecking(false);
-      return;
-    }
+  const savedUser = localStorage.getItem("erpUser");
+
+if (savedUser) {
+  setUser(JSON.parse(savedUser));
+}
+
+const token = localStorage.getItem("erpToken");
+
+if (!token) {
+  setChecking(false);
+  return;
+}
    apiFetch("/api/auth/me")
   .then(data => {
     setUser(data);
