@@ -1,40 +1,86 @@
+import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Header from "./Components/Header";
 import Footer from "./Components/Footer";
-import Sidebar from "./Components/SideBar";
 import Home from "./Pages/Home";
 import ProductModule from "./Pages/ProductModule";
 import OrderModule from "./Pages/OrderModule";
 import CRMModule from "./Pages/CrmModule";
 import PurchaseModule from "./Pages/Purchasemodule";
 import Auth from "./Components/Auth";
-import { Routes, Route } from "react-router-dom";
-import CategoriesModule from "./Pages/CategoriesModule";
-import ImportCenter from "./Pages/ImportCenter";
-import ExportCenter from "./Pages/ExportCenter";  
-import BOMModule from "./Pages/BOMModule";
+import { apiFetch } from "./api";
 
+// ── Private Route wrapper ─────────────────────────────────────
+function PrivateRoute({ children, user, checking }) {
+  if (checking) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
+      minHeight:"60vh", color:"#64748b", fontSize:"15px" }}>
+      Checking session…
+    </div>
+  );
+  return user ? children : <Navigate to="/auth" replace />;
+}
 
 export default function App() {
-  return (
-    <div style={{ display: "flex", minHeight: "100vh"}}>
-      
-      {/* Optional Sidebar */}
-      {/* <Sidebar /> */}
+  const [user, setUser]       = useState(null);
+  const [checking, setChecking] = useState(true);
 
-      <div style={{ flex: 1, background: "#f9fafb", display: "flex",
-    flexDirection: "column",
-    minHeight: "100vh" }}>
+  // ── On mount: verify session via cookie ────────────────────
+  useEffect(() => {
+    apiFetch("/api/auth/me")
+      .then(data => {
+        setUser(data);
+        localStorage.setItem("erpUser", JSON.stringify(data));
+      })
+      .catch(() => {
+        setUser(null);
+        localStorage.removeItem("erpUser");
+      })
+      .finally(() => setChecking(false));
+  }, []);
+
+  return (
+    <div style={{ display:"flex", minHeight:"100vh" }}>
+      <div style={{ flex:1, background:"#f9fafb", display:"flex",
+        flexDirection:"column", minHeight:"100vh" }}>
         <Header />
 
-        <div style={{ padding: "20px", flex: 1  }}>
+        <div style={{ padding:"20px", flex:1 }}>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/products" element={<ProductModule />} />
-            <Route path="/orders" element={<OrderModule />} />
-            <Route path="/crm" element={<CRMModule />} />
-            <Route path="/purchase" element={<PurchaseModule />} />
-            <Route path="/auth" element={<Auth />} />
-        
+            {/* Public */}
+            <Route path="/auth" element={
+              user ? <Navigate to="/" replace /> : <Auth onLogin={setUser} />
+            } />
+
+            {/* Protected */}
+            <Route path="/" element={
+              <PrivateRoute user={user} checking={checking}>
+                <Home user={user} setUser={setUser} />
+              </PrivateRoute>
+            } />
+            <Route path="/products" element={
+              <PrivateRoute user={user} checking={checking}>
+                <ProductModule />
+              </PrivateRoute>
+            } />
+            <Route path="/orders" element={
+              <PrivateRoute user={user} checking={checking}>
+                <OrderModule />
+              </PrivateRoute>
+            } />
+            <Route path="/crm" element={
+              <PrivateRoute user={user} checking={checking}>
+                <CRMModule />
+              </PrivateRoute>
+            } />
+            <Route path="/purchase" element={
+              <PrivateRoute user={user} checking={checking}>
+                <PurchaseModule />
+              </PrivateRoute>
+            } />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
 
