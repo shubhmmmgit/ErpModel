@@ -3,26 +3,23 @@ import jwt from "jsonwebtoken";
 const SECRET = process.env.JWT_SECRET || "mysecret";
 
 export const authMiddleware = (req, res, next) => {
-  const token = req.cookies?.token;
-
+  // Check Authorization header first (token-based)
+  const authHeader = req.headers["authorization"];
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : req.cookies?.token; // fallback for localhost
+ 
   if (!token) return res.status(401).json({ error: "No token" });
-
+ 
   try {
     const decoded = jwt.verify(token, SECRET);
-
-    // decoded = { userId: 5, iat: ... }
-    // Normalize so both field names always resolve to the same tenant ID
-    req.user = {
-      ...decoded,
-      userId:     decoded.userId,          // already in token
-      businessId: decoded.userId,          // alias — same value
-    };
-
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
+ 
 
 // Optional role guard factory (used by purchase module)
 // Usage: router.post("/approve", authMiddleware, roleGuard("manager","admin"), handler)

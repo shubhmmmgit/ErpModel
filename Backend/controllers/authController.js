@@ -3,6 +3,9 @@ import jwt from "jsonwebtoken";
 import pool from "../config/db.js";
 
 const SECRET = process.env.JWT_SECRET || "mysecret";
+ 
+const signToken = (user) =>
+  jwt.sign({ userId: user.id, businessId: user.id }, SECRET, { expiresIn: "7d" });
 
 export const signup = async (req, res) => {
   try {
