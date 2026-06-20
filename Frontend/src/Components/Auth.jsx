@@ -29,14 +29,10 @@ const handleSubmit = async (e) => {
     });
 
     // Save authenticated user
-    if (data?.user) {
-      localStorage.setItem(
-        "erpUser",
-        JSON.stringify(data.user)
-      );
+     if (data?.user) {
+      localStorage.setItem("erpUser", JSON.stringify(data.user));
+      if (onLogin) onLogin(data.user);  // ← add this
     }
-
-    // Redirect to dashboard
     navigate("/");
 
   } catch (err) {

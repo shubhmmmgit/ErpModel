@@ -24,7 +24,7 @@ app.use(cors({
     "http://localhost:5173",
     "https://erpmodell.netlify.app"
   ],
-  credentials: true,
+  credentials: true,   
 }));
 
 app.use(express.json());
