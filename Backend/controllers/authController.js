@@ -24,8 +24,8 @@ export const signup = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: false,
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
       path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -80,30 +80,24 @@ export const login = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("token", { path: "/" });
+  res.clearCookie("token", { path: "/", secure: true, sameSite: "none" });
   res.json({ message: "Logged out" });
 };
 
 export const getMe = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.business_id, u.role,
-              b.name AS business_name
-       FROM users u
-       LEFT JOIN businesses b ON b.id = u.business_id
-       WHERE u.id = $1`,
+      "SELECT id, name, email FROM users WHERE id = $1",
       [req.user.userId]
     );
     const user = result.rows[0];
     if (!user) return res.status(404).json({ error: "User not found" });
- 
+
     res.json({
       id: user.id,
       name: user.name,
       email: user.email,
-      businessId: user.business_id,
-      businessName: user.business_name,
-      role: user.role,
+      businessId: req.user.businessId,
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch user" });
