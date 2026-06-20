@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api.js";
 
-export default function Auth() {
+export default function Auth({onLogin}) {
   const [isLogin, setIsLogin]   = useState(true);
   const [loading, setLoading]   = useState(false);
   const [form, setForm]         = useState({

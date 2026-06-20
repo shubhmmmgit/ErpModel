@@ -26,18 +26,20 @@ export default function App() {
   const [checking, setChecking] = useState(true);
 
   // ── On mount: verify session via cookie ────────────────────
-  useEffect(() => {
-    apiFetch("/api/auth/")
-      .then(data => {
-        setUser(data);
-        localStorage.setItem("erpUser", JSON.stringify(data));
-      })
-      .catch(() => {
-        setUser(null);
-        localStorage.removeItem("erpUser");
-      })
-      .finally(() => setChecking(false));
-  }, []);
+useEffect(() => {
+  console.log("CALLING /api/auth/me");
+
+  apiFetch("/api/auth/me")
+    .then(data => {
+      setUser(data);
+      localStorage.setItem("erpUser", JSON.stringify(data));
+    })
+    .catch(() => {
+      setUser(null);
+      localStorage.removeItem("erpUser");
+    })
+    .finally(() => setChecking(false));
+}, []);
 
   return (
     <div style={{ display:"flex", minHeight:"100vh" }}>
