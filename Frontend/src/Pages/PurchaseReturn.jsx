@@ -136,24 +136,10 @@ export default function PurchaseReturn() {
         ],
       };
 
-      const response = await fetch(
-        "http://localhost:8080/api/purchase/returns",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify(returnData),
-        }
-      );
-
-      const createdReturn = await response.json();
-
-      if (!response.ok) {
-        setFormError(createdReturn?.error || "Failed to create return.");
-        return;
-      }
+      await apiFetch("/api/purchase/returns", {
+        method: "POST",
+        body: JSON.stringify(returnData),
+      });
 
       await fetchReturns();
       setReason("");
