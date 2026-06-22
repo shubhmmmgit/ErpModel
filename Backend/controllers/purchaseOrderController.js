@@ -78,15 +78,24 @@ if (!suppCheck.rows.length) {
       const price    = parseFloat(item.unit_price    || 0);
       const taxPct   = parseFloat(item.tax_percent   || 0);
       const discPct  = parseFloat(item.discount_percent || 0);
-      const lineTotal = qty * price * (1 + taxPct / 100) * (1 - discPct / 100);
+      const lineTotal = qty * price;
+      const itemTax =
+      lineTotal * taxPct / 100;
       subtotal += lineTotal;
-      return { ...item, total_price: lineTotal };
+      return {
+       ...item,
+        total_price:
+        lineTotal + itemTax
+      };
     });
 
     const taxAmount      = items.reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price || 0) * parseFloat(i.tax_percent || 0) / 100, 0);
     const discountAmt    = parseFloat(discount_amount || 0);
-    const totalAmount    = subtotal - discountAmt;
-
+    const totalAmount =
+    subtotal -
+    discountAmt +
+    taxAmount;
+    
     const poResult = await client.query(
       `INSERT INTO purchase_orders
          (business_id, po_number, pr_id, rfq_id, supplier_id, created_by,
@@ -193,7 +202,145 @@ export const getPOById = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+export const updatePO = async (req, res) => {
+  try {
+    const { businessId } = req.user;
+    const { id } = req.params;
 
+    const {
+      supplier_id,
+      delivery_date,
+      payment_terms,
+      shipping_address,
+      notes,
+      items,
+      discount_amount = 0
+    } = req.body;
+    console.log("UPDATE ITEMS", items);
+    let subtotal = 0;
+    
+    const enrichedItems = items.map(item => {
+      const qty = Number(item.quantity || 0);
+      const price = Number(item.unit_price || 0);
+      const taxPct = Number(item.tax_percent || 0);
+      const discPct = Number(item.discount_percent || 0);
+
+     const lineTotal = qty * price;
+
+     subtotal += lineTotal;
+     const itemTax =
+  lineTotal * taxPct / 100;
+
+return {
+  ...item,
+  total_price:
+    lineTotal + itemTax
+};
+    });
+
+    const taxAmount = items.reduce(
+      (s, i) =>
+        s +
+        Number(i.quantity || 0) *
+        Number(i.unit_price || 0) *
+        Number(i.tax_percent || 0) / 100,
+      0
+    );
+
+    const totalAmount =
+  subtotal -
+  Number(discount_amount || 0) +
+  taxAmount;
+   console.log({
+  subtotal,
+  taxAmount,
+  discountAmount: Number(discount_amount || 0),
+  totalAmount
+});
+    await pool.query(
+      `
+      UPDATE purchase_orders
+      SET
+        supplier_id=$1,
+        delivery_date=$2,
+        payment_terms=$3,
+        shipping_address=$4,
+        notes=$5,
+        subtotal=$6,
+        tax_amount=$7,
+        discount_amount=$8,
+        total_amount=$9,
+        updated_at=NOW()
+      WHERE id=$10
+      AND business_id=$11
+      `,
+      [
+        supplier_id,
+        delivery_date || null,
+        payment_terms,
+        shipping_address,
+        notes,
+        subtotal,
+        taxAmount,
+        discount_amount,
+        totalAmount,
+        id,
+        businessId
+      ]
+    );
+
+    await pool.query(
+      `DELETE FROM purchase_order_items WHERE po_id=$1`,
+      [id]
+    );
+
+    for (const item of enrichedItems) {
+      await pool.query(
+        `
+        INSERT INTO purchase_order_items
+        (
+          po_id,
+          business_id,
+          product_id,
+          item_name,
+          description,
+          quantity,
+          unit,
+          unit_price,
+          tax_percent,
+          discount_percent,
+          total_price
+        )
+        VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        `,
+        [
+          id,
+          businessId,
+          item.product_id || null,
+          item.item_name,
+          item.description || null,
+          item.quantity,
+          item.unit,
+          item.unit_price,
+          item.tax_percent,
+          item.discount_percent,
+          item.total_price
+        ]
+      );
+    }
+
+    const updated = await getFullPO(id, businessId);
+
+    res.json(updated);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message
+    });
+  }
+};
 // ── UPDATE STATUS ─────────────────────────────────────────────────────────────
 export const updatePOStatus = async (req, res) => {
   try {

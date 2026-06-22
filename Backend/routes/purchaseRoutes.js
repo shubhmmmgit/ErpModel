@@ -17,7 +17,7 @@ import {
 } from "../controllers/rfqController.js";
 
 import {
-  createPO, getPOs, getPOById, updatePOStatus
+  createPO, getPOs, getPOById, updatePO, updatePOStatus
 } from "../controllers/purchaseOrderController.js";
 
 import {
@@ -67,6 +67,7 @@ router.get   ("/orders",          getPOs);
 router.post  ("/orders",     authMiddleware,     createPO);
 router.get   ("/orders/:id",      getPOById);
 router.patch ("/orders/:id/status", updatePOStatus);
+router.put("/orders/:id", updatePO);
 
 // ── Goods Receipts (GRN) ──────────────────────────────────────
 router.get   ("/grn",       getGRNs);
