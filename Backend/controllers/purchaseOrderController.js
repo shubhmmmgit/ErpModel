@@ -1,6 +1,8 @@
 
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
+import { createGRNFromPO}from "../services/grnWorkflowService.js";
+import {  createInvoiceFromGRN } from "../services/invoiceWorkflow.js";
 
 const genNumber = async (client, businessId, prefix, table, col) => {
   const year = new Date().getFullYear();
@@ -376,15 +378,113 @@ export const updatePOStatus = async (req, res) => {
 // ── HELPER ────────────────────────────────────────────────────────────────────
 const getFullPO = async (id, businessId) => {
   const poRes = await pool.query(
-    `SELECT po.*, s.name AS supplier_name, s.email AS supplier_email, s.phone AS supplier_phone
-     FROM purchase_orders po
-     LEFT JOIN suppliers s ON s.id = po.supplier_id
-     WHERE po.id = $1 AND po.business_id = $2`,
+    `SELECT
+    po.*,
+
+    s.name              AS supplier_name,
+    s.email             AS supplier_email,
+    s.phone             AS supplier_phone,
+    s.address           AS supplier_address,
+    s.city              AS supplier_city,
+    s.country           AS supplier_country,
+    s.gstin             AS supplier_gstin,
+    s.payment_terms     AS supplier_payment_terms,
+    s.lead_time_days    AS supplier_lead_time,
+    s.notes             AS supplier_notes
+
+FROM purchase_orders po
+
+LEFT JOIN suppliers s
+ON s.id = po.supplier_id
+
+WHERE
+po.id = $1
+AND po.business_id = $2`,
     [id, businessId]
   );
   if (!poRes.rows.length) return null;
   const po = poRes.rows[0];
-  const itemsRes = await pool.query("SELECT * FROM purchase_order_items WHERE po_id = $1 ORDER BY id", [id]);
-  po.items = itemsRes.rows;
-  return po;
+
+const itemsRes = await pool.query(
+  `
+  SELECT
+      poi.*,
+      p.name,
+      p.sku
+
+  FROM purchase_order_items poi
+
+  LEFT JOIN products p
+      ON p.id = poi.product_id
+
+  WHERE poi.po_id = $1
+
+  ORDER BY poi.id
+  `,
+  [id]
+);
+
+po.items = itemsRes.rows;
+
+po.supplier = {
+
+    name: po.supplier_name,
+
+    email: po.supplier_email,
+
+    phone: po.supplier_phone,
+
+    address: po.supplier_address,
+
+    city: po.supplier_city,
+
+    country: po.supplier_country,
+
+    gstin: po.supplier_gstin,
+
+    payment_terms: po.supplier_payment_terms,
+
+    lead_time_days: po.supplier_lead_time,
+
+    notes: po.supplier_notes
+
+};
+
+return po;
+};
+
+
+export const receivePurchaseOrder =
+async (req,res) => {
+
+  try {
+
+    const { businessId } = req.user;
+
+    const { id } = req.params;
+
+    const grn =
+    await createGRNFromPO(
+        id,
+        businessId,
+        
+      );
+    await createInvoiceFromGRN(
+    grn.id,
+    businessId,
+    
+    );
+    res.json({
+      success:true,
+      grn
+    });
+
+  } catch(err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
 };

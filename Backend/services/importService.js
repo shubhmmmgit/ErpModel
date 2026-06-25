@@ -1,6 +1,4 @@
-// services/importService.js
-// Phase 2: Universal import system — xlsx, xls, csv
-// All imports strictly scoped to businessId
+
 import pool from "../config/db.js";
 
 // ─────────────────────────────────────────────────────────────

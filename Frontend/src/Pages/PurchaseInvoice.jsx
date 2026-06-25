@@ -15,7 +15,6 @@ const INV_STATUS = {
 };
 
 const EMPTY = {
-  invoice_number: "",
   po_id: "",
   supplier_id: "",
   total_amount: "",
@@ -54,11 +53,8 @@ export default function PurchaseInvoice() {
 
   // Auto-generate invoice number
   const openCreate = () => {
-    setForm({
-      ...EMPTY,
-      invoice_number: `INV-${Date.now()}`,
-    });
-    setShowForm(true);
+     setForm(EMPTY);
+     setShowForm(true);
   };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -89,17 +85,16 @@ export default function PurchaseInvoice() {
 
     setSubmitting(true);
     try {
-      await apiFetch("/api/purchase/invoices", {
-        method: "POST",
-        body: JSON.stringify({
-          invoice_number: form.invoice_number,
-          po_id:          form.po_id        ? Number(form.po_id)       : null,
-          supplier_id:    form.supplier_id  ? Number(form.supplier_id) : null,
-          total_amount:   Number(form.total_amount),
-          notes:          form.notes || null,
-        }),
-      });
-      toast("Invoice created successfully");
+const created = await apiFetch("/api/purchase/invoices", {
+  method: "POST",
+  body: JSON.stringify({
+    po_id: form.po_id ? Number(form.po_id) : null,
+    supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
+    total_amount: Number(form.total_amount),
+    notes: form.notes || null,
+  }),
+});
+      toast(`Invoice ${created.invoice_number} created successfully`);
       setShowForm(false);
       setForm(EMPTY);
       fetchAll();
@@ -179,15 +174,19 @@ export default function PurchaseInvoice() {
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Create Invoice" width="540px">
         <form onSubmit={handleSubmit} style={{ paddingTop:"16px" }}>
 
-          <FormInput label="Invoice Number *">
-            <input
-              required
-              value={form.invoice_number}
-              onChange={e => set("invoice_number", e.target.value)}
-              style={inputStyle}
-              placeholder="INV-2026-0001"
-            />
-          </FormInput>
+         <div
+  style={{
+    padding: "10px",
+    background: "#0f172a",
+    border: "1px solid #334155",
+    borderRadius: "8px",
+    marginBottom: "14px",
+    color: "#94a3b8",
+    fontSize: "13px"
+  }}
+>
+  Invoice number will be generated automatically.
+</div>
 
           <FormInput label="Purchase Order (optional)">
             <select

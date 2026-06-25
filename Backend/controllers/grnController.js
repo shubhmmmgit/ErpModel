@@ -1,6 +1,7 @@
 
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
+import {  createInvoiceFromGRN } from "../services/invoiceWorkflow.js";
 
 const genNumber = async (client, businessId, prefix, table, col) => {
   const year = new Date().getFullYear();

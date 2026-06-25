@@ -8,7 +8,9 @@ import {
 import { apiFetch } from "../api.js";
 
 const EMPTY = { name:"", email:"", phone:"", address:"", city:"", country:"",
-                gstin:"", payment_terms:"", lead_time_days:0, notes:"", status:"active" };
+                gstin:"", payment_terms:"", lead_time_days:0, notes:"", status:"active",
+                automation: { create_rfq: false, create_po: false },
+                default_products: [] };
 
 export default function SupplierManagement() {
   const [suppliers, setSuppliers] = useState([]);
@@ -41,7 +43,7 @@ export default function SupplierManagement() {
   useEffect(() => { fetchSuppliers(); }, [statusFilter, search]);
 
   const openCreate = () => { setEditing(null); setForm(EMPTY); setShowForm(true); };
-  const openEdit   = (s)  => { setEditing(s.id); setForm({ ...s }); setShowForm(true); };
+  const openEdit   = (s)  => { setEditing(s.id); setForm({ ...EMPTY, ...s, default_products: s.default_products||[], automation: { create_rfq:false, create_po:false, ...(s.automation||{}) } }); setShowForm(true); };
 
  const handleSubmit = async (e) => {
   e.preventDefault();
@@ -75,7 +77,17 @@ export default function SupplierManagement() {
     toast(err.message || "Failed", "error");
   }
 };
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set     = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const setAuto = (k, v) => setForm(f => ({ ...f, automation: { ...(f.automation||{}), [k]: v } }));
+
+  // Default products helpers
+  const addDefaultProduct    = () => setForm(f => ({ ...f, default_products: [...(f.default_products||[]), { name:"", qty:1 }] }));
+  const removeDefaultProduct = (i) => setForm(f => ({ ...f, default_products: f.default_products.filter((_,idx)=>idx!==i) }));
+  const setDP = (i, field, val) => setForm(f => {
+    const dp = [...(f.default_products||[])];
+    dp[i] = { ...dp[i], [field]: val };
+    return { ...f, default_products: dp };
+  });
 
   return (
     <div>
@@ -193,6 +205,94 @@ export default function SupplierManagement() {
             <textarea value={form.notes||""} onChange={e=>set("notes",e.target.value)}
               style={{ ...inputStyle, height:"70px", resize:"vertical" }} placeholder="Any additional notes…" />
           </FormInput>
+
+          {/* ── Default Products ── */}
+          <div style={{ marginTop:"16px", padding:"14px 16px", background:"rgba(255,255,255,0.04)", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+              <div style={{ fontSize:"11px", fontWeight:"700", color:"#64748b", letterSpacing:"0.08em", textTransform:"uppercase" }}>Default Products</div>
+              <button
+                type="button"
+                onClick={addDefaultProduct}
+                style={{ background:"rgba(42,157,143,0.15)", color:"#2A9D8F", border:"1px solid rgba(42,157,143,0.3)", borderRadius:"6px", padding:"4px 10px", fontSize:"12px", cursor:"pointer", fontWeight:"600" }}
+              >+ Add Product</button>
+            </div>
+
+            {(form.default_products||[]).length === 0 ? (
+              <div style={{ fontSize:"13px", color:"#475569", textAlign:"center", padding:"10px 0" }}>
+                No default products yet — add products to enable meaningful automation.
+              </div>
+            ) : (
+              <div>
+                {/* Column headers */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 28px", gap:"8px", marginBottom:"6px" }}>
+                  <span style={{ fontSize:"11px", color:"#475569", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.06em" }}>Product Name</span>
+                  <span style={{ fontSize:"11px", color:"#475569", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.06em" }}>Qty</span>
+                  <span />
+                </div>
+                {(form.default_products||[]).map((dp, i) => (
+                  <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 80px 28px", gap:"8px", marginBottom:"8px", alignItems:"center" }}>
+                    <input
+                      placeholder="e.g. Cotton Fabric"
+                      value={dp.name}
+                      onChange={e => setDP(i, "name", e.target.value)}
+                      style={{ ...inputStyle, margin:0 }}
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      value={dp.qty}
+                      onChange={e => setDP(i, "qty", parseInt(e.target.value)||1)}
+                      style={{ ...inputStyle, margin:0 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeDefaultProduct(i)}
+                      style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:"16px", padding:"0", lineHeight:1 }}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Automation Rules ── */}
+          <div style={{ marginTop:"12px", padding:"14px 16px", background:"rgba(255,255,255,0.04)", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ fontSize:"11px", fontWeight:"700", color:"#64748b", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"4px" }}>Automation Rules</div>
+            <div style={{ fontSize:"12px", color:"#475569", marginBottom:"12px" }}>
+              Triggered when supplier is saved — uses Default Products above to pre-fill.
+            </div>
+            <label style={{ display:"flex", alignItems:"flex-start", gap:"10px", cursor:(form.default_products||[]).length===0?"not-allowed":"pointer", marginBottom:"10px", opacity:(form.default_products||[]).length===0?0.45:1 }}>
+              <input
+                type="checkbox"
+                checked={!!(form.automation?.create_rfq)}
+                disabled={(form.default_products||[]).length===0}
+                onChange={e => setAuto("create_rfq", e.target.checked)}
+                style={{ width:"15px", height:"15px", accentColor:"#2A9D8F", cursor:"pointer", marginTop:"2px", flexShrink:0 }}
+              />
+              <div>
+                <div style={{ fontSize:"14px", color:"#cbd5e1", fontWeight:"500" }}> Create Draft RFQ Template</div>
+                <div style={{ fontSize:"11px", color:"#475569", marginTop:"2px" }}>Creates a draft RFQ pre-filled with the default products above</div>
+              </div>
+            </label>
+            <label style={{ display:"flex", alignItems:"flex-start", gap:"10px", cursor:(form.default_products||[]).length===0?"not-allowed":"pointer", opacity:(form.default_products||[]).length===0?0.45:1 }}>
+              <input
+                type="checkbox"
+                checked={!!(form.automation?.create_po)}
+                disabled={(form.default_products||[]).length===0}
+                onChange={e => setAuto("create_po", e.target.checked)}
+                style={{ width:"15px", height:"15px", accentColor:"#2A9D8F", cursor:"pointer", marginTop:"2px", flexShrink:0 }}
+              />
+              <div>
+                <div style={{ fontSize:"14px", color:"#cbd5e1", fontWeight:"500" }}>Create Draft PO Template</div>
+                <div style={{ fontSize:"11px", color:"#475569", marginTop:"2px" }}>Creates a draft PO pre-filled with the default products above</div>
+              </div>
+            </label>
+            {(form.default_products||[]).length===0 && (
+              <div style={{ marginTop:"10px", fontSize:"12px", color:"#f59e0b", display:"flex", alignItems:"center", gap:"6px" }}>
+                ⚠ Add at least one default product above to enable automation.
+              </div>
+            )}
+          </div>
 
           <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"8px" }}>
             <Btn variant="secondary" onClick={()=>setShowForm(false)}>Cancel</Btn>

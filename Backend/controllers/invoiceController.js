@@ -1,6 +1,7 @@
 
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
+import { generateDocumentNumber } from "../services/documentNumberService.js";
 
 const genNumber = async (client, businessId, prefix, table, col) => {
   const year = new Date().getFullYear();
@@ -19,10 +20,17 @@ export const createInvoice = async (req, res) => {
   try {
     const {businessId} = req.user;
     const {
-      invoice_number, po_id, grn_id, supplier_id,
-      invoice_date, due_date, subtotal, tax_amount,
-      discount_amount, total_amount, notes,
-    } = req.body;
+  po_id,
+  grn_id,
+  supplier_id,
+  invoice_date,
+  due_date,
+  subtotal,
+  tax_amount,
+  discount_amount,
+  total_amount,
+  notes,
+} = req.body;
 
     let finalSupplierId = supplier_id;
 
@@ -51,7 +59,11 @@ if (!finalSupplierId) {
     error: "Supplier is required"
   });
 }
-    if (!invoice_number?.trim()) return res.status(400).json({ error: "Invoice number is required" });
+const invoiceNumber =
+  await generateDocumentNumber(
+    businessId,
+    "INV"
+  );
     if (!total_amount || parseFloat(total_amount) <= 0) return res.status(400).json({ error: "Total amount must be > 0" });
 
     const suppCheck = await client.query(
@@ -93,7 +105,7 @@ RETURNING *
   businessId,
   po_id,
   finalSupplierId,
-  invoice_number.trim(),
+  invoiceNumber,
   total_amount
 ]
 );
@@ -107,7 +119,7 @@ await logActivity(
   "created",
   businessId,
   {
-    invoice_number
+    invoice_number: invoiceNumber
   }
 );
 

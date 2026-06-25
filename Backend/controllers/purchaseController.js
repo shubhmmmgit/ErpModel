@@ -118,13 +118,38 @@ export const getPurchaseOrders = async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT po.*, s.name AS supplier_name,
-              COUNT(poi.id) AS item_count
+      `SSELECT
+    po.*,
+
+    s.name AS supplier_name,
+
+    COUNT(poi.id) AS item_count,
+
+    COALESCE(
+        SUM(
+            (
+                poi.quantity * poi.unit_price
+                -
+                (
+                    poi.quantity
+                    * poi.unit_price
+                    * poi.discount_percent / 100
+                )
+            )
+            *
+            (
+                1 + poi.tax_percent / 100
+            )
+        ),
+        0
+    ) AS calculated_total
        FROM purchase_orders po
        LEFT JOIN suppliers s ON s.id = po.supplier_id
        LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id
        WHERE ${where}
-       GROUP BY po.id, s.name
+       GROUP BY 
+       po.id, 
+       s.name
        ORDER BY po.created_at DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, parseInt(limit), offset]

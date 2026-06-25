@@ -5,6 +5,10 @@ import {
 } from "./Purchaseshared.jsx";
 import { apiFetch } from "../api";
 
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:8080";
+
 const RFQ_STATUS = {
   sent:     { label: "Sent",     bg: "rgba(251,191,36,0.12)",  color: C.yellow },
   received: { label: "Received", bg: "rgba(52,211,153,0.12)",  color: C.green  },
@@ -22,6 +26,7 @@ export default function RFQModule() {
   const [submitting, setSubmitting] = useState(false);
   const [detail, setDetail]       = useState(null);
   const { toast, ToastContainer } = useToast();
+  const [editingRFQ, setEditingRFQ] = useState(null);
 
   // ── Fetch ──────────────────────────────────────────────────
   const fetchAll = async () => {
@@ -58,16 +63,30 @@ export default function RFQModule() {
     }
     setSubmitting(true);
     try {
-      await apiFetch("/api/purchase/rfqs", {
-        method: "POST",
-        body: JSON.stringify({
+        const url =
+            editingRFQ
+                ? `/api/purchase/rfqs/${editingRFQ}`
+                : "/api/purchase/rfqs";
+
+        const method =
+            editingRFQ
+                ? "PUT"
+                : "POST";
+
+        await apiFetch(url, {
+            method,
+            body: JSON.stringify({
           pr_id:        form.pr_id      || null,
           deadline:     form.deadline   || null,
           notes:        form.notes      || null,
           supplier_ids: form.supplier_ids,
         })
       });
-      toast("RFQ created successfully");
+        toast.success(
+            editingRFQ
+                ? "RFQ Updated"
+                : "RFQ Created"
+          );
       setShowForm(false);
       setForm(EMPTY_FORM);
       fetchAll();
@@ -91,6 +110,59 @@ export default function RFQModule() {
   // ── Active (non-inactive) suppliers only ───────────────────
   const activeSuppliers = suppliers.filter(s => s.status === "active");
 
+
+const editQuotation = async (rfqId, supplierId) => {
+  try {
+    const data = await apiFetch(
+      `/api/purchase/quotation/${rfqId}/${supplierId}`
+    );
+
+    console.log("QUOTATION", data);
+
+    // later:
+    // setQuotation(data);
+    // setShowQuotationModal(true);
+
+  } catch (err) {
+    console.error(err);
+    toast.error("Unable to load quotation");
+  }
+};
+
+const downloadQuotation = async (rfqId, supplierId) => {
+  try {
+    window.open(
+      `${import.meta.env.VITE_API_URL}/api/purchase/quotation/${rfqId}/${supplierId}/pdf`,
+      "_blank"
+    );
+  } catch (err) {
+    console.error(err);
+    toast.error("Unable to download PDF");
+  }
+};
+const openEdit = async (rfq) => {
+  try {
+    const data = await apiFetch(
+      `/api/purchase/rfqs/${rfq.id}`
+    );
+
+    setForm({
+      deadline: data.deadline || "",
+      notes: data.notes || "",
+      supplier_ids:
+        data.suppliers.map(
+          s => s.supplier_id
+        )
+    });
+
+    setEditingRFQ(rfq.id);
+
+    setShowForm(true);
+
+  } catch(err) {
+    toast("Unable to load RFQ","error");
+  }
+};
   return (
     <div>
       <ToastContainer />
@@ -113,11 +185,12 @@ export default function RFQModule() {
             <Td>{r.deadline ? new Date(r.deadline).toLocaleDateString("en-IN") : "—"}</Td>
             <Td><span style={{ color: C.green }}>{r.quoted_count || 0}/{r.supplier_count || 0}</span></Td>
             <Td><StatusBadge status={r.status} map={RFQ_STATUS} /></Td>
-            <Td>
+            <Td> 
               <Btn variant="secondary" onClick={() => openDetail(r.id)}
                 style={{ padding:"4px 10px", fontSize:"12px" }}>
                 View
               </Btn>
+              
             </Td>
           </Tr>
         ))}
@@ -218,7 +291,7 @@ export default function RFQModule() {
             <table style={{ width:"100%", borderCollapse:"collapse" }}>
               <thead>
                 <tr>
-                  {["Supplier", "Status", "Quoted Amount", "Delivery Days"].map(h => (
+                  {["Supplier", "Status", "Quoted Amount", "Delivery Days", "Actions"].map(h => (
                     <th key={h} style={{ textAlign:"left", padding:"8px", fontSize:"11px",
                       color:"#475569", borderBottom:"1px solid #334155", textTransform:"uppercase" }}>
                       {h}
@@ -245,6 +318,47 @@ export default function RFQModule() {
                         : <span style={{ color: C.muted }}>Pending</span>}
                     </td>
                     <td style={dTd}>{s.delivery_days ? `${s.delivery_days}d` : "—"}</td>
+
+<td style={dTd}>
+  {s.status === "quoted" && (
+    <div style={{ display:"flex", gap:"6px" }}>
+
+      <Btn
+        variant="secondary"
+        onClick={() =>
+          editQuotation(
+            detail.id,
+            s.supplier_id
+          )
+        }
+        style={{ padding:"4px 8px", fontSize:"11px" }}
+      >
+        Edit
+      </Btn>
+          <Btn
+      variant="secondary"
+      onClick={() => openEdit(r)}
+      style={{ padding:"4px 10px", fontSize:"12px" }}
+    >
+      Edit
+    </Btn>
+
+      <Btn
+        variant="secondary"
+        onClick={() =>
+          downloadQuotation(
+            detail.id,
+            s.supplier_id
+          )
+        }
+        style={{ padding:"4px 8px", fontSize:"11px" }}
+      >
+        PDF
+      </Btn>
+
+    </div>
+  )}
+</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,6 +1,9 @@
 
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
+import {
+  createPOFromRFQ
+} from "../services/rfqWorkflowService.js";
 
 const genNumber = async (client, businessId, prefix, table, col) => {
   const year = new Date().getFullYear();
@@ -45,6 +48,7 @@ export const createRFQ = async (req, res) => {
     }
 
     await client.query("COMMIT");
+    
     await logActivity(businessId, "rfq", rfq.id, "created", businessId, { rfq_number });
 
     const full = await getFullRFQ(rfq.id, businessId);
@@ -110,44 +114,116 @@ export const getRFQById = async (req, res) => {
   }
 };
 
-export const submitQuotation = async (req, res) => {
+export const getQuotation = async (req, res) => {
   try {
-    const {businessId} = req.user;
+    const { businessId } = req.user;
     const { rfq_id, supplier_id } = req.params;
-    const { quoted_amount, delivery_days, validity_date, notes, items } = req.body;
 
-    const rfqSupp = await pool.query(
-      `SELECT rs.* FROM rfq_suppliers rs
-       JOIN rfqs r ON r.id = rs.rfq_id
-       WHERE rs.rfq_id = $1 AND rs.supplier_id = $2 AND r.business_id = $3`,
+    const result = await pool.query(
+      `
+      SELECT
+        r.rfq_number,
+        rs.*,
+        s.name AS supplier_name,
+        s.email,
+        s.phone,
+        s.gstin
+      FROM rfq_suppliers rs
+      JOIN rfqs r
+        ON r.id = rs.rfq_id
+      JOIN suppliers s
+        ON s.id = rs.supplier_id
+      WHERE rs.rfq_id = $1
+        AND rs.supplier_id = $2
+        AND r.business_id = $3
+      `,
       [rfq_id, supplier_id, businessId]
     );
-    if (!rfqSupp.rows.length) return res.status(404).json({ error: "Supplier not found in this RFQ" });
 
-    await pool.query(
-      `UPDATE rfq_suppliers
-       SET quoted_amount=$1, delivery_days=$2, validity_date=$3,
-           notes=$4, items=$5, status='quoted', updated_at=NOW()
-       WHERE rfq_id=$6 AND supplier_id=$7`,
-      [quoted_amount, delivery_days || null, validity_date || null,
-       notes || null, JSON.stringify(items || []), rfq_id, supplier_id]
-    );
-
-    const pending = await pool.query(
-      "SELECT COUNT(*) FROM rfq_suppliers WHERE rfq_id = $1 AND status = 'invited'", [rfq_id]
-    );
-    if (parseInt(pending.rows[0].count) === 0) {
-      await pool.query(
-        "UPDATE rfqs SET status = 'received', updated_at = NOW() WHERE id = $1 AND business_id = $2",
-        [rfq_id, businessId]
-      );
+    if (!result.rows.length) {
+      return res.status(404).json({
+        error: "Quotation not found"
+      });
     }
 
-    await logActivity(businessId, "rfq", rfq_id, "quotation_received", businessId, { supplier_id, quoted_amount });
-    res.json({ message: "Quotation submitted" });
+    res.json(result.rows[0]);
+
   } catch (err) {
-    console.error("SUBMIT QUOTATION ERROR:", err);
-    res.status(500).json({ error: err.message });
+    console.error("GET QUOTATION ERROR:", err);
+    res.status(500).json({
+      error: err.message
+    });
+  }
+};
+
+export const updateQuotation = async (req, res) => {
+  try {
+    const { businessId } = req.user;
+    const { rfq_id, supplier_id } = req.params;
+
+    const {
+      quoted_amount,
+      delivery_days,
+      validity_date,
+      notes,
+      items,
+      terms_conditions
+    } = req.body;
+
+    const check = await pool.query(
+      `
+      SELECT rs.*
+      FROM rfq_suppliers rs
+      JOIN rfqs r
+        ON r.id = rs.rfq_id
+      WHERE rs.rfq_id = $1
+        AND rs.supplier_id = $2
+        AND r.business_id = $3
+      `,
+      [rfq_id, supplier_id, businessId]
+    );
+
+    if (!check.rows.length) {
+      return res.status(404).json({
+        error: "Quotation not found"
+      });
+    }
+
+    await pool.query(
+      `
+      UPDATE rfq_suppliers
+      SET
+        quoted_amount = $1,
+        delivery_days = $2,
+        validity_date = $3,
+        notes = $4,
+        items = $5,
+        terms_conditions = $6,
+        updated_at = NOW()
+      WHERE rfq_id = $7
+        AND supplier_id = $8
+      `,
+      [
+        quoted_amount,
+        delivery_days,
+        validity_date,
+        notes,
+        JSON.stringify(items || []),
+        terms_conditions,
+        rfq_id,
+        supplier_id
+      ]
+    );
+
+    res.json({
+      message: "Quotation updated"
+    });
+
+  } catch (err) {
+    console.error("UPDATE QUOTATION ERROR:", err);
+    res.status(500).json({
+      error: err.message
+    });
   }
 };
 
@@ -182,11 +258,16 @@ export const selectSupplier = async (req, res) => {
     );
 
     await logActivity(businessId, "rfq", rfq_id, "supplier_selected", businessId, { supplier_id });
-    res.json({ message: "Supplier selected" });
+    const po = await createPOFromRFQ(
+    rfq_id,
+    supplier_id,
+    businessId
+);
+    res.json({ message: "Supplier selected", purchaseOrder:po});
   } catch (err) {
     console.error("SELECT SUPPLIER ERROR:", err);
     res.status(500).json({ error: err.message });
-  }
+  } 
 };
 
 const getFullRFQ = async (id, businessId) => {

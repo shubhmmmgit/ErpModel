@@ -12,12 +12,12 @@ import {
 } from "../controllers/purchaseRequisitionController.js";
 
 import {
-  createRFQ, getRFQs, getRFQById,
-  submitQuotation, selectSupplier
+  createRFQ, getRFQs, getRFQById, selectSupplier, getQuotation,
+  updateQuotation
 } from "../controllers/rfqController.js";
 
 import {
-  createPO, getPOs, getPOById, updatePO, updatePOStatus
+  createPO, getPOs, getPOById, updatePO, updatePOStatus,receivePurchaseOrder
 } from "../controllers/purchaseOrderController.js";
 
 import {
@@ -42,11 +42,11 @@ router.get("/dashboard",authMiddleware, getPurchaseDashboard);
 router.get("/activity", getActivityLog);
 
 // ── Suppliers ─────────────────────────────────────────────────
-router.get   ("/suppliers",       getSuppliers);
-router.post  ("/suppliers",       createSupplier);
-router.get   ("/suppliers/:id",   getSupplierById);
-router.put   ("/suppliers/:id",   updateSupplier);
-router.delete("/suppliers/:id",   deleteSupplier);
+router.get   ("/suppliers",   authMiddleware,    getSuppliers);
+router.post  ("/suppliers",    authMiddleware,   createSupplier);
+router.get   ("/suppliers/:id",   authMiddleware, getSupplierById);
+router.put   ("/suppliers/:id", authMiddleware,  updateSupplier);
+router.delete("/suppliers/:id", authMiddleware,  deleteSupplier);
 
 // ── Purchase Requisitions ─────────────────────────────────────
 router.get   ("/requisitions",               getPRs);
@@ -59,7 +59,13 @@ router.patch ("/requisitions/:id/reject",    rejectPR);
 router.get   ("/rfqs",                                    getRFQs);
 router.post  ("/rfqs",                                    createRFQ);
 router.get   ("/rfqs/:id",                                getRFQById);
-router.post  ("/rfqs/:rfq_id/quotation/:supplier_id",     submitQuotation);
+router.get(
+  "/quotation/:rfq_id/:supplier_id",
+  authMiddleware,
+  getQuotation
+);
+
+router.put("/quotation/:rfq_id/:supplier_id", authMiddleware, updateQuotation);
 router.patch ("/rfqs/:rfq_id/select-supplier",            selectSupplier);
 
 // ── Purchase Orders ───────────────────────────────────────────
@@ -68,7 +74,7 @@ router.post  ("/orders",     authMiddleware,     createPO);
 router.get   ("/orders/:id",      getPOById);
 router.patch ("/orders/:id/status", updatePOStatus);
 router.put("/orders/:id", updatePO);
-
+router.post("/orders/:id/receive", receivePurchaseOrder);
 // ── Goods Receipts (GRN) ──────────────────────────────────────
 router.get   ("/grn",       getGRNs);
 router.post  ("/grn",       createGRN);

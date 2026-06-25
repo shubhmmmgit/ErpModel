@@ -7,6 +7,7 @@ import {
   deleteOrder,
   getOrderSummary
 } from "../controllers/orderController.js";
+import { authMiddleware } from "../middlewares/authmiddleware.js";
 
 const router = express.Router();
 
@@ -14,10 +15,11 @@ const router = express.Router();
 router.get("/summary", getOrderSummary);
 
 // CRUD
-router.get("/", getOrders);
-router.post("/", createOrder);
-router.get("/:id", getOrderById);
-router.patch("/:id/status", updateOrderStatus);
-router.delete("/:id", deleteOrder);
+router.get("/", authMiddleware, getOrders);
+router.post("/", authMiddleware, createOrder);
+router.get("/:id", authMiddleware, getOrderById);
+router.patch("/:id/status", authMiddleware, updateOrderStatus);
+router.delete("/:id", authMiddleware, deleteOrder);
+router.get("/summary", authMiddleware, getOrderSummary);
 
 export default router;

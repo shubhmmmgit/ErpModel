@@ -200,8 +200,33 @@ export default function PurchaseOrders() {
     setViewOrder(order);
   }
 };
-  const selectedSupplier = suppliers.find(s => String(s.id) === String(form.supplier_id));
-  
+const receivePO = async (poId) => {
+  try {
+    await apiFetch(
+      `/api/purchase/orders/${poId}/receive`,
+      {
+        method: "POST",
+      }
+    );
+
+    toast("Goods Receipt created successfully", "success");
+
+    await fetchAll();
+
+  } catch (err) {
+    console.error(err);
+    toast(err.message || "Failed to receive PO", "error");
+  }
+};
+
+const selectedSupplier = suppliers.find(s => String(s.id) === String(form.supplier_id));
+
+const maxTax = Math.max(
+  ...(viewOrder?.items || []).map(
+    i => Number(i.tax_percent || 0)
+  ),
+  0
+);
 
   return (
     <div>
@@ -223,7 +248,7 @@ export default function PurchaseOrders() {
             <Td><span style={{ fontFamily:"monospace", color:C.blue }}>{o.po_number || `PO-${o.id}`}</span></Td>
             <Td>{o.supplier_name || "—"}</Td>
             <Td><span style={{ color:C.muted }}>{o.item_count || "—"}</span></Td>
-            <Td><strong style={{ color:C.text }}>₹{Number(o.total_amount||0).toLocaleString()}</strong></Td>
+            <Td><strong style={{ color:C.text }}>₹{Number( o.calculated_total ??  o.total_amount ??  0).toLocaleString()}</strong></Td>
             <Td><StatusBadge status={o.status} map={PO_STATUS} /></Td>
             <Td>
               <div style={{ display:"flex", gap:"6px" }}>
@@ -450,9 +475,25 @@ export default function PurchaseOrders() {
               <div>
                 <div style={poSectionLabel}>SUPPLIER</div>
                 <div style={poPartyName}>{viewOrder.supplier_name || "—"}</div>
-                {viewOrder.billing_address && (
-                  <div style={poPartyAddr}>{viewOrder.billing_address}</div>
-                )}
+                <div style={poPartyAddr}>
+  {viewOrder.supplier_address || "—"}
+</div>
+
+<div style={{ fontSize:"12px", color:C.muted }}>
+  {viewOrder.supplier_city}, {viewOrder.supplier_country}
+</div>
+
+<div style={{ fontSize:"12px", color:C.muted }}>
+  Email: {viewOrder.supplier_email || "—"}
+</div>
+
+<div style={{ fontSize:"12px", color:C.muted }}>
+  Phone: {viewOrder.supplier_phone || "—"}
+</div>
+
+<div style={{ fontSize:"12px", color:C.muted }}>
+  GSTIN: {viewOrder.supplier_gstin || "—"}
+</div>
                 {viewOrder.supplier_gstin && (
                   <div style={{ fontSize:"11px", color:C.muted, marginTop:"4px" }}>
                     GSTIN: {viewOrder.supplier_gstin}
@@ -489,7 +530,31 @@ export default function PurchaseOrders() {
                   <tr key={i} style={{ borderBottom:"1px solid #1e293b" }}>
                     <td style={poTd}>{i + 1}</td>
                     <td style={poTd}>
-                      <div style={{ fontWeight:"600", color:C.text }}>{item.item_name || item.name}</div>
+                      <div style={{ fontWeight:"600", color:C.text }}>
+  {item.item_name || item.name}
+</div>
+
+{item.sku && (
+  <div
+    style={{
+      fontSize:"11px",
+      color:C.muted
+    }}
+  >
+    SKU : {item.sku}
+  </div>
+)}
+
+{item.description && (
+  <div
+    style={{
+      fontSize:"11px",
+      color:C.muted
+    }}
+  >
+    {item.description}
+  </div>
+)}
                       {item.description && <div style={{ fontSize:"11px", color:C.muted }}>{item.description}</div>}
                     </td>
                     <td style={poTd}>{item.quantity}</td>
@@ -565,7 +630,7 @@ export default function PurchaseOrders() {
       borderBottom:"1px solid #1e293b"
     }}>
       <span style={{ color:C.muted }}>
-        CGST {(Number(viewOrder.tax_percent || 18) / 2)}%
+        CGST {(Number(maxTax || 18) / 2)}%
       </span>
 
       <span style={{ color:C.text }}>
@@ -580,7 +645,7 @@ export default function PurchaseOrders() {
       borderBottom:"1px solid #1e293b"
     }}>
       <span style={{ color:C.muted }}>
-        SGST {(Number(viewOrder.tax_percent || 18) / 2)}%
+        SGST {(Number(maxTax || 18) / 2)}%
       </span>
 
       <span style={{ color:C.text }}>
@@ -639,6 +704,15 @@ export default function PurchaseOrders() {
                 ✏️ Edit PO
               </Btn>
               <Btn onClick={() => window.print()}>🖨️ Print</Btn>
+              <Btn
+  onClick={() => receivePO(viewOrder.id)}
+  style={{
+    padding:"4px 10px",
+    fontSize:"12px"
+  }}
+>
+  Receive
+</Btn>
             </div>
           </div>
         </Modal>

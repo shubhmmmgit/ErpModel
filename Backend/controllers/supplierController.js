@@ -1,6 +1,10 @@
 
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
+import {
+  createWorkflowRule,
+  executeSupplierWorkflow
+} from "../services/workflowEngine.js";
 
 // ── CREATE ────────────────────────────────────────────────────────────────────
 export const createSupplier = async (req, res) => {
@@ -8,7 +12,7 @@ export const createSupplier = async (req, res) => {
     const { businessId } = req.user;
     const {
       name, email, phone, address, city, country,
-      gstin, payment_terms, lead_time_days, notes,
+      gstin, payment_terms, lead_time_days, notes,automation
     } = req.body;
 
     if (!name?.trim()) {
@@ -16,7 +20,7 @@ export const createSupplier = async (req, res) => {
     }
 
     // Duplicate name check (within this tenant only)
-    const dup = await pool.query(
+const dup = await pool.query(
       `SELECT id FROM suppliers
        WHERE business_id = $1 AND LOWER(name) = LOWER($2) AND status <> 'inactive'`,
       [businessId, name.trim()]
@@ -25,7 +29,7 @@ export const createSupplier = async (req, res) => {
       return res.status(409).json({ error: "A supplier with this name already exists" });
     }
 
-    const result = await pool.query(
+const result = await pool.query(
       `INSERT INTO suppliers
          (business_id, name, email, phone, address, city, country,
           gstin, payment_terms, lead_time_days, notes)
@@ -39,11 +43,26 @@ export const createSupplier = async (req, res) => {
     );
 
     await logActivity(businessId, "supplier", result.rows[0].id, "created", businessId, { name: name.trim() });
-    res.status(201).json(result.rows[0]);
+const supplier = result.rows[0];
+   await createWorkflowRule({
+  businessId,
+  supplierId: supplier.id,
+  auto_rfq: automation?.create_rfq || false,
+  auto_po: automation?.create_po || false,
+});
+
+await executeSupplierWorkflow({
+  businessId,
+  supplierId: supplier.id,
+  userId: req.user.userId
+});
+
+res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("CREATE SUPPLIER ERROR:", err);
     res.status(500).json({ error: err.message });
   }
+  
 };
 
 // ── LIST ──────────────────────────────────────────────────────────────────────

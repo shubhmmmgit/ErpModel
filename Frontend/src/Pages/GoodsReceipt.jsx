@@ -15,25 +15,55 @@ export default function GoodsReceipt() {
   const [grns, setGrns] = useState([]);
   const [po, setPo] = useState("");
   const [orders, setOrders] = useState([]);
-  
+  const [selectedPO, setSelectedPO] = useState(null);
+  const [loadingPO, setLoadingPO] = useState(false);
+
+  const handlePOChange = async (e) => {
+    const val = e.target.value;
+    setPo(val);
+    setSelectedPO(null);
+    if (!val) return;
+    setLoadingPO(true);
+    try {
+      const data = await apiFetch(`/api/purchase/orders/${val}`);
+      setSelectedPO(data);
+    } catch (err) {
+      console.error("Failed to load PO details:", err);
+    } finally {
+      setLoadingPO(false);
+    }
+  };
 const createGRN = async (e) => {
   e.preventDefault();
 
+  if (!po) {
+    alert("Please select a Purchase Order.");
+    return;
+  }
+  if (!selectedPO) {
+    alert("Selected PO not found. Please refresh and try again.");
+    return;
+  }
+  if (!selectedPO.items || selectedPO.items.length === 0) {
+    alert("This PO has no items to receive.");
+    return;
+  }
+
   try {
     const grnData = {
-      
-  po_id: Number(po),
-  items: [
-    {
-      item_name: "Received Item",
-      received_qty: 1,
-      accepted_qty: 1,
-      unit_price: 0
-    }
-    
-  ]
-};
-console.log("GRN DATA:", grnData);
+      po_id: Number(po),
+      items: selectedPO.items.map(item => ({
+        po_item_id: item.id,
+        product_id: item.product_id,
+        item_name: item.item_name,
+        ordered_qty: item.quantity,
+        received_qty: item.quantity,
+        accepted_qty: item.quantity,
+        unit_price: item.unit_price,
+        unit: item.unit
+      }))
+    };
+    console.log("GRN DATA:", grnData);
     
   const data = await apiFetch("/api/purchase/grn", {
   method: "POST",
@@ -51,24 +81,42 @@ console.log("GRN DATA:", grnData);
     ]);
 
     setPo("");
+    setSelectedPO(null);
+    await loadPOs();
   } catch (err) {
     console.error(err);
   }
   
 };
-useEffect(() => {
-  const loadPOs = async () => {
-    try {
-      const data = await apiFetch("/api/purchase/orders");
-      console.log("POs:", data);
-      setOrders(data.orders || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+const loadPOs = async () => {
+  try {
+    const data = await apiFetch("/api/purchase/orders");
+    setOrders(data.orders || []);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
+useEffect(() => {
   loadPOs();
 }, []);
+const receivePO = async (poId) => {
+  try {
+    await apiFetch(
+      `/api/purchase/orders/${poId}/receive`,
+      {
+        method: "POST"
+      }
+    );
+
+    alert("GRN Created Successfully");
+
+    loadPOs();
+
+  } catch (err) {
+    alert(err.message);
+  }
+};
   return (
     <div>
       <div style={cardStyle}>
@@ -77,18 +125,25 @@ useEffect(() => {
         <form onSubmit={createGRN} style={{ display: "flex", gap: "12px" }}>
          <select
   value={po}
-  onChange={(e) => setPo(e.target.value)}
+  onChange={handlePOChange}
+  style={inputStyle}
 >
   <option value="">Select PO</option>
 
-  {orders.map(o => (
+{orders
+  .filter(o =>
+    ["sent", "confirmed", "partially_received"].includes(o.status)
+  )
+  .map(o => (
     <option key={o.id} value={o.id}>
       {o.po_number}
     </option>
-  ))}
+))}
 </select>
 
-          <Btn type="submit">Create GRN</Btn>
+          <Btn type="submit" disabled={loadingPO || !selectedPO}>
+            {loadingPO ? "Loading…" : "Create GRN"}
+          </Btn>
         </form>
       </div>
 
