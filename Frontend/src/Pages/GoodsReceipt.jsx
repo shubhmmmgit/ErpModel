@@ -91,6 +91,8 @@ const createGRN = async (e) => {
 const loadPOs = async () => {
   try {
     const data = await apiFetch("/api/purchase/orders");
+    console.log("Purchase Orders:", data.orders);
+
     setOrders(data.orders || []);
   } catch (err) {
     console.error(err);
@@ -132,7 +134,7 @@ const receivePO = async (poId) => {
 
 {orders
   .filter(o =>
-    ["sent", "confirmed", "partially_received"].includes(o.status)
+    ["draft", "approved", "sent", "confirmed", "partially_received"].includes(o.status)
   )
   .map(o => (
     <option key={o.id} value={o.id}>

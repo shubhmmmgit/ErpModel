@@ -1,4 +1,3 @@
-
 import pool from "../config/db.js";
 import { logActivity } from "./purchaseActivityController.js";
 import {  createInvoiceFromGRN } from "../services/invoiceWorkflow.js";
@@ -27,7 +26,7 @@ export const createGRN = async (req, res) => {
     if (!poCheck.rows.length) return res.status(404).json({ error: "Purchase Order not found" });
 
     const po = poCheck.rows[0];
-    if (!["sent","confirmed","partially_received"].includes(po.status)) {
+    if (!["draft","approved","sent","confirmed","partially_received"].includes(po.status)) {
       return res.status(400).json({ error: `Cannot receive against PO with status: ${po.status}` });
     }
 
