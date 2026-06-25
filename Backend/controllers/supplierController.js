@@ -4,7 +4,7 @@ import { logActivity } from "./purchaseActivityController.js";
 import {
   createWorkflowRule,
   executeSupplierWorkflow
-} from "../services/workflowEngine.js";
+} from "../services/workFlowEngine.js";
 
 // ── CREATE ────────────────────────────────────────────────────────────────────
 export const createSupplier = async (req, res) => {
