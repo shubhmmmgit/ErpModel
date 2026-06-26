@@ -11,6 +11,7 @@ export default function Auth({onLogin}) {
   const navigate = useNavigate();
 
 const handleSubmit = async (e) => {
+  console.log("HANDLE SUBMIT");
   e.preventDefault();
 
   if (loading) return;
@@ -22,18 +23,19 @@ const handleSubmit = async (e) => {
     const url = isLogin
       ? "/api/auth/login"
       : "/api/auth/signup";
-
+    console.log("About to login");
     const data = await apiFetch(url, {
       method: "POST",
       body: JSON.stringify(form)
     });
-
+    console.log("Login response:", data);
     // Save authenticated user
-  if (data?.user && data?.token) {
-  localStorage.setItem("erpToken", data.token);
+if (data?.user) {
   localStorage.setItem("erpUser", JSON.stringify(data.user));
 
-  onLogin(data.user);
+  if (onLogin) {
+    onLogin(data.user);
+  }
 }
     navigate("/");
 

@@ -7,17 +7,15 @@ export const apiFetch = async (path, options = {}) => {
 
     // Attach token from localStorage if present
     const token = localStorage.getItem("erpToken");
-    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+const response = await fetch(`${BASE_URL}${path}`, {
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    ...headers,
+  },
+  ...rest,
+});
 
-    const response = await fetch(`${BASE_URL}${path}`, {
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeader,
-        ...headers,
-      },
-      ...rest,
-    });
 
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {

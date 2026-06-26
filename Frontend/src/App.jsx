@@ -9,6 +9,8 @@ import CRMModule from "./Pages/CrmModule";
 import PurchaseModule from "./Pages/Purchasemodule";
 import Auth from "./Components/Auth";
 import { apiFetch } from "./api";
+import { ToastContainer } from "react-toastify";
+ 
 
 function PrivateRoute({ children, user, checking }) {
   if (checking) return (
@@ -27,21 +29,15 @@ export default function App() {
   useEffect(() => {
   const savedUser = localStorage.getItem("erpUser");
 
-if (savedUser) {
-  setUser(JSON.parse(savedUser));
-}
 
-const token = localStorage.getItem("erpToken");
-
-if (!token) {
-  setChecking(false);
-  return;
-}
-   apiFetch("/api/auth/me")
-  .then(data => {
+apiFetch("/api/auth/me")
+ .then(data => {
     setUser(data);
-    localStorage.setItem("erpUser", JSON.stringify(data));
-  })
+    localStorage.setItem(
+      "erpUser",
+      JSON.stringify(data)
+    );
+})
   .catch(() => {
     setUser(null);
     localStorage.removeItem("erpUser");

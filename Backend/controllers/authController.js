@@ -25,16 +25,18 @@ export const signup = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+const isProduction = process.env.NODE_ENV === "production";
+
+res.cookie("token", token, {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  path: "/",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
 
     // ✅ Return user so Auth.jsx can store it in localStorage
-    res.json({ message: "Signup success", user });
+    res.json({ message: "Signup success", user, token });
   } catch (err) {
     console.error("SIGNUP ERROR:", err);
     res.status(500).json({ error: "Signup failed" });
@@ -62,19 +64,20 @@ export const login = async (req, res) => {
       SECRET,
       { expiresIn: "7d" }
     );
+const isProduction = process.env.NODE_ENV === "production";
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
+res.cookie("token", token, {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  path: "/",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
     // ✅ Return user so Auth.jsx can store it in localStorage
     res.json({
       message: "Login success",
       user: { id: user.id, name: user.name, email: user.email },
+      token,
     });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
@@ -83,7 +86,11 @@ export const login = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("token", { path: "/", secure: true, sameSite: "none" });
+  res.clearCookie("token", {
+  path: "/",
+  secure: false,
+  sameSite: "lax",
+});
   res.json({ message: "Logged out" });
 };
 
